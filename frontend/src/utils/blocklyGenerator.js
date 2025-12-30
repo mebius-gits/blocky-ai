@@ -1,26 +1,160 @@
 import * as Blockly from 'blockly';
 
 export function astToBlockly(ast, workspace) {
-    const scoreName = ast.score_name;
+    const name = ast.formula_name || ast.score_name || 'Result';
 
-    // 1. Create Variables - MUST happen before any blocks that use them
-    // Score variable
-    let scoreVar = workspace.getVariable(scoreName);
-    if (!scoreVar) {
-        scoreVar = workspace.createVariable(scoreName, 'Number');
+    console.log('AST received:', ast);
+
+    // Create result variable
+    let resultVar = workspace.getVariable(name);
+    if (!resultVar) {
+        resultVar = workspace.createVariable(name, 'Number');
     }
-    const scoreVarId = scoreVar.getId();
+    const resultVarId = resultVar.getId();
 
-    // Rule variables - create them first!
+    // Create input variables FIRST - store both name and model
+    const varMap = {}; // name -> varModel
     if (ast.variables) {
         for (const [varName, varType] of Object.entries(ast.variables)) {
-            if (!workspace.getVariable(varName)) {
-                workspace.createVariable(varName, varType === 'int' ? 'Number' : 'Boolean');
+            let varModel = workspace.getVariable(varName);
+            if (!varModel) {
+                varModel = workspace.createVariable(varName, varType === 'int' ? 'Number' : 'Boolean');
             }
+            varMap[varName] = varModel;
+            console.log('Created variable:', varName, 'with id:', varModel.getId());
         }
     }
 
-    // 2. Create Initialization Block: score = 0
+    console.log('Variable map:', Object.keys(varMap));
+    console.log('Formula:', ast.formula);
+
+    // Check if formula type
+    if (ast.formula) {
+        createFormulaBlocks(ast, workspace, resultVarId, varMap);
+    } else if (ast.rules) {
+        createScoreBlocks(ast, workspace, resultVarId, varMap);
+    }
+
+    workspace.render();
+}
+
+function createFormulaBlocks(ast, workspace, resultVarId, varMap) {
+    const setBlock = workspace.newBlock('variables_set');
+    setBlock.setFieldValue(resultVarId, 'VAR');
+
+    const formulaBlock = parseFormula(ast.formula, workspace, varMap);
+
+    if (formulaBlock) {
+        setBlock.getInput('VALUE').connection.connect(formulaBlock.outputConnection);
+    }
+
+    setBlock.initSvg();
+    setBlock.moveBy(50, 50);
+}
+
+// Parse formula using varMap directly
+function parseFormula(formula, workspace, varMap) {
+    formula = formula.trim();
+    console.log('Parsing:', formula);
+
+    if (!formula) return createNumber(workspace, 0);
+
+    // Remove wrapping parentheses
+    while (formula.startsWith('(') && formula.endsWith(')') && isWrapped(formula)) {
+        formula = formula.slice(1, -1).trim();
+    }
+
+    // Find the main operator (lowest precedence, rightmost)
+    const mainOp = findMainOperator(formula);
+
+    if (mainOp) {
+        const left = formula.substring(0, mainOp.pos).trim();
+        const right = formula.substring(mainOp.pos + mainOp.op.length).trim();
+
+        const opBlock = workspace.newBlock('math_arithmetic');
+        const opMap = { '+': 'ADD', '-': 'MINUS', '*': 'MULTIPLY', '/': 'DIVIDE', '**': 'POWER' };
+        opBlock.setFieldValue(opMap[mainOp.op] || 'ADD', 'OP');
+
+        const leftBlock = parseFormula(left, workspace, varMap);
+        const rightBlock = parseFormula(right, workspace, varMap);
+
+        if (leftBlock) {
+            leftBlock.initSvg();
+            opBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+        }
+        if (rightBlock) {
+            rightBlock.initSvg();
+            opBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+        }
+
+        opBlock.initSvg();
+        return opBlock;
+    }
+
+    // No operator found - must be a number or variable
+    const num = parseFloat(formula);
+    if (!isNaN(num)) {
+        return createNumber(workspace, num);
+    }
+
+    // Check if it's a variable using the varMap directly
+    console.log('Checking variable:', formula, 'in varMap:', Object.keys(varMap));
+    if (varMap[formula]) {
+        console.log('Found variable in varMap:', formula);
+        const varModel = varMap[formula];
+        const block = workspace.newBlock('variables_get');
+        block.setFieldValue(varModel.getId(), 'VAR');
+        block.initSvg();
+        return block;
+    }
+
+    console.log('Variable not found, fallback to 0:', formula);
+    return createNumber(workspace, 0);
+}
+
+function isWrapped(formula) {
+    let depth = 0;
+    for (let i = 0; i < formula.length; i++) {
+        if (formula[i] === '(') depth++;
+        else if (formula[i] === ')') depth--;
+        if (depth === 0 && i < formula.length - 1) return false;
+    }
+    return true;
+}
+
+function findMainOperator(formula) {
+    const operators = [['+', '-'], ['*', '/'], ['**']];
+
+    for (const ops of operators) {
+        let depth = 0;
+        for (let i = formula.length - 1; i >= 0; i--) {
+            if (formula[i] === ')') depth++;
+            else if (formula[i] === '(') depth--;
+            else if (depth === 0) {
+                for (const op of ops) {
+                    if (formula.substring(i, i + op.length) === op) {
+                        if (op === '*' && (formula[i + 1] === '*' || (i > 0 && formula[i - 1] === '*'))) {
+                            continue;
+                        }
+                        if (i > 0) {
+                            return { op, pos: i };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function createNumber(workspace, num) {
+    const block = workspace.newBlock('math_number');
+    block.setFieldValue(num, 'NUM');
+    block.initSvg();
+    return block;
+}
+
+function createScoreBlocks(ast, workspace, scoreVarId, varMap) {
     const initBlock = workspace.newBlock('variables_set');
     initBlock.setFieldValue(scoreVarId, 'VAR');
 
@@ -28,31 +162,24 @@ export function astToBlockly(ast, workspace) {
     zeroBlock.setFieldValue(0, 'NUM');
 
     initBlock.getInput('VALUE').connection.connect(zeroBlock.outputConnection);
-
     initBlock.initSvg();
     zeroBlock.initSvg();
     initBlock.moveBy(50, 50);
 
     let prevBlock = initBlock;
 
-    // 3. Process Rules
     ast.rules.forEach(rule => {
-        // Create IF block
         const ifBlock = workspace.newBlock('controls_if');
 
-        // Create Condition Comparator
         const condBlock = workspace.newBlock('logic_compare');
         const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
-        const opFieldValue = opMap[rule.condition.op] || 'EQ';
-        condBlock.setFieldValue(opFieldValue, 'OP');
+        condBlock.setFieldValue(opMap[rule.condition.op] || 'EQ', 'OP');
 
-        // Left Operand (Variable) - use variable name from AST
         const leftVarName = rule.condition.left;
-        let leftVarModel = workspace.getVariable(leftVarName);
-
-        // If variable doesn't exist, create it
+        let leftVarModel = varMap[leftVarName];
         if (!leftVarModel) {
             leftVarModel = workspace.createVariable(leftVarName, 'Number');
+            varMap[leftVarName] = leftVarModel;
         }
 
         const leftBlock = workspace.newBlock('variables_get');
@@ -60,7 +187,6 @@ export function astToBlockly(ast, workspace) {
         leftBlock.initSvg();
         condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
 
-        // Right Operand (Value)
         let rightBlock;
         if (typeof rule.condition.right === 'number') {
             rightBlock = workspace.newBlock('math_number');
@@ -69,13 +195,10 @@ export function astToBlockly(ast, workspace) {
             rightBlock = workspace.newBlock('logic_boolean');
             rightBlock.setFieldValue(rule.condition.right ? 'TRUE' : 'FALSE', 'BOOL');
         } else {
-            // String - might be "true" or "false"
-            if (String(rule.condition.right).toLowerCase() === 'true') {
+            const strVal = String(rule.condition.right).toLowerCase();
+            if (strVal === 'true' || strVal === 'false') {
                 rightBlock = workspace.newBlock('logic_boolean');
-                rightBlock.setFieldValue('TRUE', 'BOOL');
-            } else if (String(rule.condition.right).toLowerCase() === 'false') {
-                rightBlock = workspace.newBlock('logic_boolean');
-                rightBlock.setFieldValue('FALSE', 'BOOL');
+                rightBlock.setFieldValue(strVal === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
             } else {
                 rightBlock = workspace.newBlock('math_number');
                 rightBlock.setFieldValue(0, 'NUM');
@@ -85,10 +208,8 @@ export function astToBlockly(ast, workspace) {
         condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
         condBlock.initSvg();
 
-        // Connect Condition to IF
         ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
 
-        // Action: score = score + value
         const setScoreBlock = workspace.newBlock('variables_set');
         setScoreBlock.setFieldValue(scoreVarId, 'VAR');
 
@@ -113,10 +234,7 @@ export function astToBlockly(ast, workspace) {
         ifBlock.getInput('DO0').connection.connect(setScoreBlock.previousConnection);
         ifBlock.initSvg();
 
-        // Link to previous block
         prevBlock.nextConnection.connect(ifBlock.previousConnection);
         prevBlock = ifBlock;
     });
-
-    workspace.render();
 }

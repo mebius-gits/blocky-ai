@@ -32,25 +32,59 @@ def parse_document_ai(doc_text):
     Input Text:
     {doc_text}
     
-    Target JSON Format:
+    There are THREE possible formats:
+
+    FORMAT 1 - Pure Formula (for calculations like BMI, GFR):
+    {{
+      "formula_name": "string",
+      "type": "formula",
+      "variables": {{ "variable_name": "int", ... }},
+      "formula": "math expression"
+    }}
+
+    FORMAT 2 - Pure Scoring Rules:
     {{
       "score_name": "string",
+      "type": "score",
       "variables": {{ "variable_name": "int or boolean", ... }},
       "rules": [
-        {{
-          "condition": {{ "op": ">=" or "<=" or "==", "left": "variable_name", "right": value }},
-          "action": {{ "type": "add", "value": number }}
-        }}
+        {{ "condition": {{ "op": ">=", "left": "variable_name", "right": value }}, "action": {{ "type": "add", "value": number }} }}
       ]
     }}
-    
+
+    FORMAT 3 - Scoring with Formulas (PREFERRED when rules use calculated values):
+    {{
+      "score_name": "string",
+      "type": "score_with_formula",
+      "variables": {{ "weight": "int", "height": "int", ... }},
+      "formulas": {{ "BMI": "weight / (height * height)", ... }},
+      "rules": [
+        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 25 }}, "action": {{ "type": "add", "value": 1 }} }}
+      ]
+    }}
+
+    EXAMPLE - Obesity Risk Score:
+    Input: "Create obesity risk score using BMI. If BMI >= 25 add 1, if BMI >= 30 add 2"
+    Output:
+    {{
+      "score_name": "ObesityRisk",
+      "type": "score_with_formula",
+      "variables": {{ "weight": "int", "height": "int" }},
+      "formulas": {{ "BMI": "weight / (height * height)" }},
+      "rules": [
+        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 25 }}, "action": {{ "type": "add", "value": 1 }} }},
+        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 30 }}, "action": {{ "type": "add", "value": 2 }} }}
+      ]
+    }}
+
     Rules:
-    1. Parse 'score_name' from the text.
-    2. Parse 'variables' and their types (int/boolean).
-    3. Parse 'rules'. Each rule has an 'if' condition and an 'add' action.
-    4. For conditions, split into 'left' (variable), 'op' (calculated from text, e.g., >=), and 'right' (value).
-    5. Ensure 'right' value is the correct type (int or boolean).
-    6. Return ONLY the raw JSON. Do not include markdown formatting like ```json ... ```.
+    1. Detect which format is appropriate based on input.
+    2. If rules reference a calculated value (like BMI), use FORMAT 3 with "formulas" field.
+    3. Parse all input variables (the raw inputs user provides).
+    4. Parse derived formulas (calculated from input variables).
+    5. Parse rules with condition (op, left, right) and action.
+    6. Operators: >=, <=, ==, >, <
+    7. Return ONLY the raw JSON. Do not include markdown formatting.
     """
     
     try:

@@ -25,13 +25,30 @@ export function astToBlockly(ast, workspace) {
         }
     }
 
+    // Create formula variables (computed values like BMI)
+    if (ast.formulas) {
+        for (const formulaName of Object.keys(ast.formulas)) {
+            let varModel = workspace.getVariable(formulaName);
+            if (!varModel) {
+                varModel = workspace.createVariable(formulaName, 'Number');
+            }
+            varMap[formulaName] = varModel;
+            console.log('Created formula variable:', formulaName, 'with id:', varModel.getId());
+        }
+    }
+
     console.log('Variable map:', Object.keys(varMap));
     console.log('Formula:', ast.formula);
+    console.log('Formulas:', ast.formulas);
 
-    // Check if formula type
-    if (ast.formula) {
+    // Check if has formulas to compute (score_with_formula type)
+    if (ast.formulas && ast.rules) {
+        createFormulaWithScoreBlocks(ast, workspace, resultVarId, varMap);
+    } else if (ast.formula) {
+        // Pure formula type
         createFormulaBlocks(ast, workspace, resultVarId, varMap);
     } else if (ast.rules) {
+        // Pure score type
         createScoreBlocks(ast, workspace, resultVarId, varMap);
     }
 
@@ -210,6 +227,121 @@ function createScoreBlocks(ast, workspace, scoreVarId, varMap) {
 
         ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
 
+        const setScoreBlock = workspace.newBlock('variables_set');
+        setScoreBlock.setFieldValue(scoreVarId, 'VAR');
+
+        const addBlock = workspace.newBlock('math_arithmetic');
+        addBlock.setFieldValue('ADD', 'OP');
+
+        const currentScoreBlock = workspace.newBlock('variables_get');
+        currentScoreBlock.setFieldValue(scoreVarId, 'VAR');
+        currentScoreBlock.initSvg();
+
+        const valBlock = workspace.newBlock('math_number');
+        valBlock.setFieldValue(rule.action.value, 'NUM');
+        valBlock.initSvg();
+
+        addBlock.getInput('A').connection.connect(currentScoreBlock.outputConnection);
+        addBlock.getInput('B').connection.connect(valBlock.outputConnection);
+        addBlock.initSvg();
+
+        setScoreBlock.getInput('VALUE').connection.connect(addBlock.outputConnection);
+        setScoreBlock.initSvg();
+
+        ifBlock.getInput('DO0').connection.connect(setScoreBlock.previousConnection);
+        ifBlock.initSvg();
+
+        prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        prevBlock = ifBlock;
+    });
+}
+
+// New function: Creates formula blocks followed by scoring rules
+function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
+    let yOffset = 50;
+    let prevBlock = null;
+
+    // Step 1: Create formula assignment blocks (e.g., set BMI = weight / height^2)
+    for (const [formulaName, formulaExpr] of Object.entries(ast.formulas)) {
+        const formulaVarModel = varMap[formulaName];
+        if (!formulaVarModel) continue;
+
+        const setBlock = workspace.newBlock('variables_set');
+        setBlock.setFieldValue(formulaVarModel.getId(), 'VAR');
+
+        const formulaBlock = parseFormula(formulaExpr, workspace, varMap);
+        if (formulaBlock) {
+            setBlock.getInput('VALUE').connection.connect(formulaBlock.outputConnection);
+        }
+
+        setBlock.initSvg();
+        setBlock.moveBy(50, yOffset);
+        yOffset += 60;
+
+        if (prevBlock) {
+            prevBlock.nextConnection.connect(setBlock.previousConnection);
+        }
+        prevBlock = setBlock;
+    }
+
+    // Step 2: Initialize score = 0
+    const initBlock = workspace.newBlock('variables_set');
+    initBlock.setFieldValue(scoreVarId, 'VAR');
+
+    const zeroBlock = workspace.newBlock('math_number');
+    zeroBlock.setFieldValue(0, 'NUM');
+
+    initBlock.getInput('VALUE').connection.connect(zeroBlock.outputConnection);
+    initBlock.initSvg();
+    zeroBlock.initSvg();
+
+    if (prevBlock) {
+        prevBlock.nextConnection.connect(initBlock.previousConnection);
+    } else {
+        initBlock.moveBy(50, yOffset);
+    }
+    prevBlock = initBlock;
+
+    // Step 3: Create scoring rule blocks (if BMI >= 25 then score += 1)
+    ast.rules.forEach(rule => {
+        const ifBlock = workspace.newBlock('controls_if');
+
+        const condBlock = workspace.newBlock('logic_compare');
+        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+        condBlock.setFieldValue(opMap[rule.condition.op] || 'EQ', 'OP');
+
+        // Left side - the formula variable (e.g., BMI)
+        const leftVarName = rule.condition.left;
+        let leftVarModel = varMap[leftVarName];
+        if (!leftVarModel) {
+            leftVarModel = workspace.createVariable(leftVarName, 'Number');
+            varMap[leftVarName] = leftVarModel;
+        }
+
+        const leftBlock = workspace.newBlock('variables_get');
+        leftBlock.setFieldValue(leftVarModel.getId(), 'VAR');
+        leftBlock.initSvg();
+        condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+
+        // Right side - the comparison value
+        let rightBlock;
+        if (typeof rule.condition.right === 'number') {
+            rightBlock = workspace.newBlock('math_number');
+            rightBlock.setFieldValue(rule.condition.right, 'NUM');
+        } else if (typeof rule.condition.right === 'boolean') {
+            rightBlock = workspace.newBlock('logic_boolean');
+            rightBlock.setFieldValue(rule.condition.right ? 'TRUE' : 'FALSE', 'BOOL');
+        } else {
+            rightBlock = workspace.newBlock('math_number');
+            rightBlock.setFieldValue(parseFloat(rule.condition.right) || 0, 'NUM');
+        }
+        rightBlock.initSvg();
+        condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+        condBlock.initSvg();
+
+        ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
+
+        // Action: score = score + value
         const setScoreBlock = workspace.newBlock('variables_set');
         setScoreBlock.setFieldValue(scoreVarId, 'VAR');
 

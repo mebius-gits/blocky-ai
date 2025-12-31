@@ -26,6 +26,7 @@ function App() {
   const [docText, setDocText] = useState(DEFAULT_DOC);
   const [ast, setAst] = useState(null);
   const [score, setScore] = useState(null);
+  const [computed, setComputed] = useState({});  // Store computed formula values like BMI
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({});
@@ -65,6 +66,7 @@ function App() {
 
   const loadExample = (type) => {
     setScore(null);
+    setComputed({});
     if (type === 'score') {
       setDocText(`score_name: RiskScore
 variables:
@@ -81,6 +83,23 @@ variables:
   weight: int
   height: int
 formula: weight / (height * height)`);
+    } else if (type === 'combined') {
+      // Formula + Scoring combined example
+      setDocText(`score_name: ObesityRisk
+variables:
+  weight: int
+  height: int
+  age: int
+formulas:
+  BMI: weight / (height * height)
+  age_doubled: age * 2
+rules:
+  - if: BMI >= 25
+    add: 1
+  - if: BMI >= 30
+    add: 2
+  - if: age_doubled >= 120
+    add: 1`);
     }
   };
 
@@ -126,6 +145,7 @@ formula: weight / (height * height)`);
 
   const handleCalculate = async () => {
     if (!ast) return;
+    setError('');
     try {
       const response = await fetch('http://localhost:5000/calculate', {
         method: 'POST',
@@ -133,12 +153,27 @@ formula: weight / (height * height)`);
         body: JSON.stringify({ ast: ast, inputs: inputs })
       });
       const data = await response.json();
+
+      // Check for error first
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      // Store computed formula values (like BMI)
+      if (data.computed) {
+        setComputed(data.computed);
+      } else {
+        setComputed({});
+      }
+
       if (data.result !== undefined) {
         setScore(data.result);
       } else if (data.score !== undefined) {
         setScore(data.score);
       } else {
-        setError('Calculation error');
+        setError('Calculation error: unexpected response format');
+        console.log('Response data:', data);
       }
     } catch (e) {
       setError('Calculation failed: ' + e.message);
@@ -226,8 +261,7 @@ formula: weight / (height * height)`);
         {leftTab === 'editor' && (
           <>
             <div className="quick-actions">
-              <button className="btn-sm" onClick={() => loadExample('score')}>Score</button>
-              <button className="btn-sm" onClick={() => loadExample('formula')}>Formula</button>
+              <button className="btn-sm btn-highlight" onClick={() => loadExample('combined')}>Load Example</button>
             </div>
 
             <textarea
@@ -374,7 +408,19 @@ formula: weight / (height * height)`);
 
         {score !== null && (
           <div className="score-card">
-            <div className="score-label">{ast?.formula ? 'Result' : 'Score'}</div>
+            {/* Show computed formula values first */}
+            {Object.keys(computed).length > 0 && (
+              <div className="computed-values">
+                <div className="computed-label">Computed Values</div>
+                {Object.entries(computed).map(([name, value]) => (
+                  <div key={name} className="computed-row">
+                    <span className="computed-name">{name}</span>
+                    <span className="computed-value">{typeof value === 'number' ? value.toFixed(2) : value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="score-label">{ast?.formula ? 'Result' : 'Final Score'}</div>
             <div className="score-value">{typeof score === 'number' ? score.toFixed(2) : score}</div>
             {selectedPatient && <div className="patient-tag">for {selectedPatient.name}</div>}
           </div>

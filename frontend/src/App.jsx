@@ -3,15 +3,43 @@ import BlocklyComponent from './components/BlocklyComponent';
 import { astToBlockly } from './utils/blocklyGenerator';
 import './App.css';
 
-const DEFAULT_DOC = `score_name: SampleScore
+const DEFAULT_DOC = `score_name: HEARTScore
 variables:
+  history_score: int
+  ecg_score: int
   age: int
-  has_disease: boolean
+  risk_factor_count: int
+  troponin_level: int
+formulas:
+  age_factor: (age - 45) / 20
 rules:
-  - if: age >= 65
+  - if: history_score >= 2
+    add: 2
+  - if: history_score >= 1
     add: 1
-  - if: has_disease == true
-    add: 2`;
+  - if: ecg_score >= 2
+    add: 2
+  - if: ecg_score >= 1
+    add: 1
+  - if: age_factor >= 1
+    add: 2
+  - if: age_factor >= 0.5
+    add: 1
+  - if: risk_factor_count >= 3
+    add: 2
+  - if: risk_factor_count >= 1
+    add: 1
+  - if: troponin_level >= 2
+    add: 2
+  - if: troponin_level >= 1
+    add: 1
+risk_levels:
+  - if: score >= 7
+    text: ⚠️ 高危 - 需緊急介入 (50-65% MACE)
+  - if: score >= 4
+    text: ⚡ 中危 - 住院觀察 (12-16% MACE)
+  - if: score < 4
+    text: ✓ 低危 - 可考慮出院 (0.9-1.7% MACE)`;
 
 // Sample Patient Data for Demo
 const SAMPLE_PATIENTS = [
@@ -84,22 +112,44 @@ variables:
   height: int
 formula: weight / (height * height)`);
     } else if (type === 'combined') {
-      // Formula + Scoring combined example
-      setDocText(`score_name: ObesityRisk
+      // HEART Score with custom risk levels
+      setDocText(`score_name: HEARTScore
 variables:
-  weight: int
-  height: int
+  history_score: int
+  ecg_score: int
   age: int
+  risk_factor_count: int
+  troponin_level: int
 formulas:
-  BMI: weight / (height * height)
-  age_doubled: age * 2
+  age_factor: (age - 45) / 20
 rules:
-  - if: BMI >= 25
-    add: 1
-  - if: BMI >= 30
+  - if: history_score >= 2
     add: 2
-  - if: age_doubled >= 120
-    add: 1`);
+  - if: history_score >= 1
+    add: 1
+  - if: ecg_score >= 2
+    add: 2
+  - if: ecg_score >= 1
+    add: 1
+  - if: age_factor >= 1
+    add: 2
+  - if: age_factor >= 0.5
+    add: 1
+  - if: risk_factor_count >= 3
+    add: 2
+  - if: risk_factor_count >= 1
+    add: 1
+  - if: troponin_level >= 2
+    add: 2
+  - if: troponin_level >= 1
+    add: 1
+risk_levels:
+  - if: score >= 7
+    text: ⚠️ 高危 - 需緊急介入 (50-65% MACE)
+  - if: score >= 4
+    text: ⚡ 中危 - 住院觀察 (12-16% MACE)
+  - if: score < 4
+    text: ✓ 低危 - 可考慮出院 (0.9-1.7% MACE)`);
     }
   };
 
@@ -127,7 +177,13 @@ rules:
         if (selectedPatient && selectedPatient[varName] !== undefined) {
           newInputs[varName] = selectedPatient[varName];
         } else {
-          newInputs[varName] = varType === 'int' ? 0 : false;
+          // Handle different variable types with null check
+          const type = (varType || 'int').toLowerCase();
+          if (type === 'boolean' || type === 'bool') {
+            newInputs[varName] = false;
+          } else {
+            newInputs[varName] = 0;
+          }
         }
       });
       setInputs(newInputs);
@@ -260,9 +316,7 @@ rules:
         {/* Editor Tab */}
         {leftTab === 'editor' && (
           <>
-            <div className="quick-actions">
-              <button className="btn-sm btn-highlight" onClick={() => loadExample('combined')}>Load Example</button>
-            </div>
+
 
             <textarea
               className="code-editor"

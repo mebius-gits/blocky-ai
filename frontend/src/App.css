@@ -236,7 +236,6 @@ body {
 .chat-msg.assistant .msg-bubble {
   background: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 
@@ -390,7 +389,7 @@ body {
   top: 20px;
   right: 20px;
   bottom: 20px;
-  width: 260px;
+  width: 300px;
 }
 
 /* Panel Title */
@@ -699,11 +698,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 300px;
 }
 
 .chat-msg {
-  max-width: 85%;
+  max-width: 75%;
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 0.8rem;
@@ -721,7 +719,6 @@ body {
   align-self: flex-start;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
-  border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 

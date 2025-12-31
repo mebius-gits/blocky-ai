@@ -1,185 +1,178 @@
-# Medical Blockly - Rule Builder System
+# Medical Blockly - AI-Powered Rule Builder
 
-A visual medical rule builder that converts structured text into Blockly visual blocks. Supports **formulas**, **scoring rules**, and **combined formula+scoring** with automatic risk level interpretation.
+A visual medical scoring rule builder that converts text into Blockly blocks. Supports complex formulas, compound conditions, and custom risk levels.
+
+## ✨ Features
+
+- 🤖 **AI Chat** - Generate scoring rules from natural language
+- 📊 **Visual Blocks** - Blockly-based rule visualization
+- ➕ **Compound Conditions** - Support for `and`/`or` logic
+- 📐 **Formula Support** - BMI, GFR, and custom calculations
+- 🎯 **Custom Risk Levels** - Define your own risk thresholds
+- 🔄 **Live Calculation** - Instant score computation
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Python 3.8+
 - Node.js 16+
-- Gemini API Key (get from [Google AI Studio](https://aistudio.google.com/))
+- [Gemini API Key](https://aistudio.google.com/)
 
-### Step 1: Start Backend
-
+### 1. Start Backend
 ```bash
 cd backend
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Create .env file with your API key
-echo "GEMINI_API_KEY=your_api_key_here" > .env
-
-# Start server
+echo "GEMINI_API_KEY=your_key_here" > .env
 python app.py
 ```
+→ Runs at `http://localhost:5000`
 
-Backend runs at: `http://localhost:5000`
-
-### Step 2: Start Frontend (New Terminal)
-
+### 2. Start Frontend
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start dev server
 npm run dev
 ```
-
-Frontend runs at: `http://localhost:5173`
-
-### Step 3: Open Browser
-
-Navigate to `http://localhost:5173` and start building!
-
----
-
-## 📋 How to Use
-
-1. **Click "Load Example"** to see a sample rule
-2. **Click "Generate Blocks"** to create Blockly blocks
-3. **Enter variable values** in the right panel
-4. **Click "Calculate"** to see results with risk level
+→ Runs at `http://localhost:5173`
 
 ---
 
 ## 📝 Input Format
 
-### Combined Format (Recommended)
-Supports formulas within scoring rules:
-
-```
-score_name: ObesityRisk
+### Basic Structure
+```yaml
+score_name: MyScore
 variables:
-  weight: int
-  height: int
   age: int
+  has_disease: boolean
 formulas:
-  BMI: weight / (height * height)
-  age_doubled: age * 2
+  bmi: weight / (height * height)
 rules:
-  - if: BMI >= 25
+  - if: age >= 65
     add: 1
-  - if: BMI >= 30
+  - if: bmi >= 25 or has_disease
     add: 2
-  - if: age_doubled >= 120
-    add: 1
+risk_levels:
+  - if: score >= 3
+    text: ⚠️ High Risk
+  - if: score >= 1
+    text: ⚡ Medium Risk
+  - if: score < 1
+    text: ✓ Low Risk
 ```
 
-### Variables
-- `int` - Numbers (age, weight, etc.)
-- `boolean` - True/False (is_smoker, has_diabetes)
+### Supported Features
 
-### Formulas
-Define computed values using math operations: `+`, `-`, `*`, `/`, `**`
-
-### Rules
-- Operators: `>=`, `<=`, `==`, `>`, `<`
-- Actions: `add: [number]`
+| Feature | Syntax | Example |
+|---------|--------|---------|
+| Variables | `int`, `boolean` | `age: int` |
+| Formulas | `+`, `-`, `*`, `/`, `**` | `bmi: weight / (height ** 2)` |
+| Conditions | `>=`, `<=`, `==`, `>`, `<` | `if: age >= 65` |
+| Compound | `and`, `or` | `if: gcs < 10 or map < 70` |
+| Ternary | `if...else` | `factor: 0.85 if is_female else 1.0` |
 
 ---
 
-## 🎯 Risk Level Interpretation
+## 🏥 Example Scores
 
-| Score | Risk Level |
-|-------|------------|
-| 0-1 | ✓ Low Risk |
-| 2 | ⚡ Medium Risk |
-| 3+ | ⚠️ High Risk |
+### SOFA Score (ICU)
+```yaml
+score_name: SOFA_Score
+variables:
+  pao2_fio2: int
+  platelets: int
+  gcs: int
+  map: int
+  dopamine: int
+  creatinine: int
+formulas:
+  dummy: 0
+rules:
+  - if: pao2_fio2 < 400
+    add: 1
+  - if: platelets < 150
+    add: 1
+  - if: gcs < 15
+    add: 1
+  - if: map < 70 or dopamine > 0
+    add: 1
+  - if: creatinine >= 2
+    add: 1
+risk_levels:
+  - if: score >= 10
+    text: ⚠️ Critical - Mortality >50%
+  - if: score >= 6
+    text: ⚡ Moderate - Mortality 20-30%
+  - if: score < 6
+    text: ✓ Low - Mortality <15%
+```
+
+### HEART Score (Cardiac)
+```yaml
+score_name: HEART_Score
+variables:
+  history: int
+  ecg: int
+  age: int
+  risk_factors: int
+  troponin: int
+formulas:
+  age_factor: (age - 45) / 20
+rules:
+  - if: history >= 2
+    add: 2
+  - if: ecg >= 2
+    add: 2
+  - if: age_factor >= 1
+    add: 2
+  - if: risk_factors >= 3
+    add: 2
+  - if: troponin >= 2
+    add: 2
+risk_levels:
+  - if: score >= 7
+    text: ⚠️ High - Intervention needed
+  - if: score >= 4
+    text: ⚡ Medium - Admit for observation
+  - if: score < 4
+    text: ✓ Low - Consider discharge
+```
+
+---
+
+## 🔌 API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/parse` | POST | Parse text → AST |
+| `/calculate` | POST | Compute score from inputs |
+| `/chat` | POST | AI generates scoring rules |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-blocky ai/
+blocky-ai/
 ├── backend/
-│   ├── app.py              # Flask API + calculation logic
-│   ├── parser_ai.py        # Gemini AI natural language parser
-│   ├── parser.py           # Regex-based fallback parser
-│   ├── .env                # API keys
+│   ├── app.py           # Flask API
+│   ├── parser_ai.py     # Gemini AI parser
+│   ├── .env             # API keys
 │   └── requirements.txt
-│
 └── frontend/
     └── src/
-        ├── App.jsx                    # Main UI
-        ├── App.css                    # Styles
-        ├── components/
-        │   └── BlocklyComponent.jsx   # Blockly workspace
+        ├── App.jsx      # Main UI
         └── utils/
-            └── blocklyGenerator.js    # AST → Blockly blocks
-```
-
----
-
-## 🔌 API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/parse` | POST | Convert text to AST JSON |
-| `/calculate` | POST | Evaluate AST with input values |
-| `/chat` | POST | AI generates rules from natural language |
-
----
-
-## 🧪 Example: Complex Cardiovascular Risk
-
-```
-score_name: CardiovascularRisk
-variables:
-  age: int
-  total_cholesterol: int
-  hdl_cholesterol: int
-  systolic_bp: int
-  is_smoker: boolean
-  has_diabetes: boolean
-  weight: int
-  height: int
-formulas:
-  BMI: weight / (height * height)
-  cholesterol_ratio: total_cholesterol / hdl_cholesterol
-  bp_adjusted: systolic_bp * 1.2
-  age_risk_factor: (age - 20) / 5
-rules:
-  - if: age_risk_factor >= 8
-    add: 3
-  - if: age_risk_factor >= 6
-    add: 2
-  - if: cholesterol_ratio >= 6
-    add: 3
-  - if: cholesterol_ratio >= 5
-    add: 2
-  - if: bp_adjusted >= 180
-    add: 3
-  - if: bp_adjusted >= 156
-    add: 2
-  - if: BMI >= 30
-    add: 2
-  - if: BMI >= 25
-    add: 1
-  - if: is_smoker == true
-    add: 4
-  - if: has_diabetes == true
-    add: 3
+            └── blocklyGenerator.js  # AST → Blocks
 ```
 
 ---
 
 ## ⚙️ Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `GEMINI_API_KEY` | Google AI API key (required) |
-| `GEMINI_MODEL` | Model name (default: gemini-1.5-flash) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes | Google AI API key |
+| `GEMINI_MODEL` | No | Model name (default: gemini-1.5-flash) |

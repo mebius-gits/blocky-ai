@@ -71,10 +71,51 @@ function createFormulaBlocks(ast, workspace, resultVarId, varMap) {
 
 // Parse formula using varMap directly
 function parseFormula(formula, workspace, varMap) {
-    formula = formula.trim();
+    // Handle undefined or null formula
+    if (formula == null) return createNumber(workspace, 0);
+
+    formula = String(formula).trim();
     console.log('Parsing:', formula);
 
     if (!formula) return createNumber(workspace, 0);
+
+    // Check for if...else conditional expression first
+    // Pattern: "value1 if condition else value2"
+    const ifElseMatch = formula.match(/^(.+?)\s+if\s+(.+?)\s+else\s+(.+)$/);
+    if (ifElseMatch) {
+        const thenValue = ifElseMatch[1].trim();
+        const condition = ifElseMatch[2].trim();
+        const elseValue = ifElseMatch[3].trim();
+
+        console.log('Found if-else:', { thenValue, condition, elseValue });
+
+        // Create ternary block (if-then-else expression)
+        const ternaryBlock = workspace.newBlock('logic_ternary');
+
+        // Parse condition (e.g., "is_female" or "age > 50")
+        const conditionBlock = parseCondition(condition, workspace, varMap);
+        if (conditionBlock) {
+            conditionBlock.initSvg();
+            ternaryBlock.getInput('IF').connection.connect(conditionBlock.outputConnection);
+        }
+
+        // Parse then value
+        const thenBlock = parseFormula(thenValue, workspace, varMap);
+        if (thenBlock) {
+            thenBlock.initSvg();
+            ternaryBlock.getInput('THEN').connection.connect(thenBlock.outputConnection);
+        }
+
+        // Parse else value
+        const elseBlock = parseFormula(elseValue, workspace, varMap);
+        if (elseBlock) {
+            elseBlock.initSvg();
+            ternaryBlock.getInput('ELSE').connection.connect(elseBlock.outputConnection);
+        }
+
+        ternaryBlock.initSvg();
+        return ternaryBlock;
+    }
 
     // Remove wrapping parentheses
     while (formula.startsWith('(') && formula.endsWith(')') && isWrapped(formula)) {
@@ -114,6 +155,14 @@ function parseFormula(formula, workspace, varMap) {
         return createNumber(workspace, num);
     }
 
+    // Check if it's a boolean (with null check)
+    if (formula && (formula.toLowerCase() === 'true' || formula.toLowerCase() === 'false')) {
+        const boolBlock = workspace.newBlock('logic_boolean');
+        boolBlock.setFieldValue(formula.toLowerCase() === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
+        boolBlock.initSvg();
+        return boolBlock;
+    }
+
     // Check if it's a variable using the varMap directly
     console.log('Checking variable:', formula, 'in varMap:', Object.keys(varMap));
     if (varMap[formula]) {
@@ -127,6 +176,60 @@ function parseFormula(formula, workspace, varMap) {
 
     console.log('Variable not found, fallback to 0:', formula);
     return createNumber(workspace, 0);
+}
+
+// Parse condition for if...else (e.g., "is_female" or "age > 50")
+function parseCondition(condition, workspace, varMap) {
+    // Handle undefined or null condition
+    if (condition == null) {
+        const trueBlock = workspace.newBlock('logic_boolean');
+        trueBlock.setFieldValue('TRUE', 'BOOL');
+        trueBlock.initSvg();
+        return trueBlock;
+    }
+    condition = String(condition).trim();
+
+    // Check for comparison operators
+    const compMatch = condition.match(/^(\w+)\s*(>=|<=|==|>|<)\s*(.+)$/);
+    if (compMatch) {
+        const left = compMatch[1].trim();
+        const op = compMatch[2];
+        const right = compMatch[3].trim();
+
+        const compareBlock = workspace.newBlock('logic_compare');
+        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+        compareBlock.setFieldValue(opMap[op] || 'EQ', 'OP');
+
+        const leftBlock = parseFormula(left, workspace, varMap);
+        if (leftBlock) {
+            leftBlock.initSvg();
+            compareBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+        }
+
+        const rightBlock = parseFormula(right, workspace, varMap);
+        if (rightBlock) {
+            rightBlock.initSvg();
+            compareBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+        }
+
+        compareBlock.initSvg();
+        return compareBlock;
+    }
+
+    // Simple variable (boolean)
+    if (varMap[condition]) {
+        const varModel = varMap[condition];
+        const block = workspace.newBlock('variables_get');
+        block.setFieldValue(varModel.getId(), 'VAR');
+        block.initSvg();
+        return block;
+    }
+
+    // Fallback: true
+    const trueBlock = workspace.newBlock('logic_boolean');
+    trueBlock.setFieldValue('TRUE', 'BOOL');
+    trueBlock.initSvg();
+    return trueBlock;
 }
 
 function isWrapped(formula) {
@@ -171,6 +274,84 @@ function createNumber(workspace, num) {
     return block;
 }
 
+// Create condition block for either simple or compound conditions
+function createConditionBlock(condition, workspace, varMap, scoreVarId) {
+    if (!condition) return null;
+
+    // Handle compound conditions (and/or)
+    if (condition.compound) {
+        const logicBlock = workspace.newBlock('logic_operation');
+        logicBlock.setFieldValue(condition.compound.toUpperCase(), 'OP'); // 'AND' or 'OR'
+
+        const subConditions = condition.conditions || [];
+        if (subConditions.length >= 1) {
+            const leftBlock = createConditionBlock(subConditions[0], workspace, varMap, scoreVarId);
+            if (leftBlock) {
+                leftBlock.initSvg();
+                logicBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+            }
+        }
+        if (subConditions.length >= 2) {
+            // For more than 2 conditions, we'd need to nest, but for now handle 2
+            const rightBlock = createConditionBlock(subConditions[1], workspace, varMap, scoreVarId);
+            if (rightBlock) {
+                rightBlock.initSvg();
+                logicBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+            }
+        }
+
+        logicBlock.initSvg();
+        return logicBlock;
+    }
+
+    // Simple condition (left op right)
+    if (!condition.left || !condition.op) return null;
+
+    const condBlock = workspace.newBlock('logic_compare');
+    const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+    condBlock.setFieldValue(opMap[condition.op] || 'EQ', 'OP');
+
+    // Left side - variable
+    const leftVarName = condition.left;
+    let leftVarModel = varMap[leftVarName];
+    if (!leftVarModel) {
+        leftVarModel = workspace.createVariable(leftVarName, 'Number');
+        varMap[leftVarName] = leftVarModel;
+    }
+
+    const leftBlock = workspace.newBlock('variables_get');
+    leftBlock.setFieldValue(leftVarModel.getId(), 'VAR');
+    leftBlock.initSvg();
+    condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+
+    // Right side - value
+    let rightBlock;
+    const rightVal = condition.right;
+    if (typeof rightVal === 'number') {
+        rightBlock = workspace.newBlock('math_number');
+        rightBlock.setFieldValue(rightVal, 'NUM');
+    } else if (typeof rightVal === 'boolean') {
+        rightBlock = workspace.newBlock('logic_boolean');
+        rightBlock.setFieldValue(rightVal ? 'TRUE' : 'FALSE', 'BOOL');
+    } else if (rightVal == null) {
+        rightBlock = workspace.newBlock('math_number');
+        rightBlock.setFieldValue(0, 'NUM');
+    } else {
+        const strVal = String(rightVal).toLowerCase();
+        if (strVal === 'true' || strVal === 'false') {
+            rightBlock = workspace.newBlock('logic_boolean');
+            rightBlock.setFieldValue(strVal === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
+        } else {
+            rightBlock = workspace.newBlock('math_number');
+            rightBlock.setFieldValue(parseFloat(rightVal) || 0, 'NUM');
+        }
+    }
+    rightBlock.initSvg();
+    condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+
+    return condBlock;
+}
+
 function createScoreBlocks(ast, workspace, scoreVarId, varMap) {
     const initBlock = workspace.newBlock('variables_set');
     initBlock.setFieldValue(scoreVarId, 'VAR');
@@ -186,45 +367,16 @@ function createScoreBlocks(ast, workspace, scoreVarId, varMap) {
     let prevBlock = initBlock;
 
     ast.rules.forEach(rule => {
+        // Skip rules without valid condition
+        if (!rule || !rule.condition) return;
+
         const ifBlock = workspace.newBlock('controls_if');
 
-        const condBlock = workspace.newBlock('logic_compare');
-        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
-        condBlock.setFieldValue(opMap[rule.condition.op] || 'EQ', 'OP');
+        // Handle compound or simple conditions
+        const condBlock = createConditionBlock(rule.condition, workspace, varMap, scoreVarId);
+        if (!condBlock) return;
 
-        const leftVarName = rule.condition.left;
-        let leftVarModel = varMap[leftVarName];
-        if (!leftVarModel) {
-            leftVarModel = workspace.createVariable(leftVarName, 'Number');
-            varMap[leftVarName] = leftVarModel;
-        }
-
-        const leftBlock = workspace.newBlock('variables_get');
-        leftBlock.setFieldValue(leftVarModel.getId(), 'VAR');
-        leftBlock.initSvg();
-        condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
-
-        let rightBlock;
-        if (typeof rule.condition.right === 'number') {
-            rightBlock = workspace.newBlock('math_number');
-            rightBlock.setFieldValue(rule.condition.right, 'NUM');
-        } else if (typeof rule.condition.right === 'boolean') {
-            rightBlock = workspace.newBlock('logic_boolean');
-            rightBlock.setFieldValue(rule.condition.right ? 'TRUE' : 'FALSE', 'BOOL');
-        } else {
-            const strVal = String(rule.condition.right).toLowerCase();
-            if (strVal === 'true' || strVal === 'false') {
-                rightBlock = workspace.newBlock('logic_boolean');
-                rightBlock.setFieldValue(strVal === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
-            } else {
-                rightBlock = workspace.newBlock('math_number');
-                rightBlock.setFieldValue(0, 'NUM');
-            }
-        }
-        rightBlock.initSvg();
-        condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
         condBlock.initSvg();
-
         ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
 
         const setScoreBlock = workspace.newBlock('variables_set');
@@ -262,7 +414,10 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
     let prevBlock = null;
 
     // Step 1: Create formula assignment blocks (e.g., set BMI = weight / height^2)
-    for (const [formulaName, formulaExpr] of Object.entries(ast.formulas)) {
+    for (const [formulaName, formulaExpr] of Object.entries(ast.formulas || {})) {
+        // Skip empty or undefined formula expressions
+        if (!formulaExpr) continue;
+
         const formulaVarModel = varMap[formulaName];
         if (!formulaVarModel) continue;
 
@@ -303,42 +458,17 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
     prevBlock = initBlock;
 
     // Step 3: Create scoring rule blocks (if BMI >= 25 then score += 1)
-    ast.rules.forEach(rule => {
+    (ast.rules || []).forEach(rule => {
+        // Skip rules without valid condition
+        if (!rule || !rule.condition) return;
+
         const ifBlock = workspace.newBlock('controls_if');
 
-        const condBlock = workspace.newBlock('logic_compare');
-        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
-        condBlock.setFieldValue(opMap[rule.condition.op] || 'EQ', 'OP');
+        // Use createConditionBlock to handle both simple and compound conditions
+        const condBlock = createConditionBlock(rule.condition, workspace, varMap, scoreVarId);
+        if (!condBlock) return;
 
-        // Left side - the formula variable (e.g., BMI)
-        const leftVarName = rule.condition.left;
-        let leftVarModel = varMap[leftVarName];
-        if (!leftVarModel) {
-            leftVarModel = workspace.createVariable(leftVarName, 'Number');
-            varMap[leftVarName] = leftVarModel;
-        }
-
-        const leftBlock = workspace.newBlock('variables_get');
-        leftBlock.setFieldValue(leftVarModel.getId(), 'VAR');
-        leftBlock.initSvg();
-        condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
-
-        // Right side - the comparison value
-        let rightBlock;
-        if (typeof rule.condition.right === 'number') {
-            rightBlock = workspace.newBlock('math_number');
-            rightBlock.setFieldValue(rule.condition.right, 'NUM');
-        } else if (typeof rule.condition.right === 'boolean') {
-            rightBlock = workspace.newBlock('logic_boolean');
-            rightBlock.setFieldValue(rule.condition.right ? 'TRUE' : 'FALSE', 'BOOL');
-        } else {
-            rightBlock = workspace.newBlock('math_number');
-            rightBlock.setFieldValue(parseFloat(rule.condition.right) || 0, 'NUM');
-        }
-        rightBlock.initSvg();
-        condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
         condBlock.initSvg();
-
         ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
 
         // Action: score = score + value
@@ -378,102 +508,50 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
     }
     const riskVarId = riskVar.getId();
 
-    // if score >= 3 then RiskLevel = "High Risk"
-    const ifHigh = workspace.newBlock('controls_if');
-    ifHigh.updateShape_();  // Ensure inputs exist
+    // Use custom risk_levels if provided, otherwise use defaults
+    const riskLevels = ast.risk_levels && ast.risk_levels.length > 0
+        ? ast.risk_levels
+        : [
+            { condition: { op: '>=', left: 'score', right: 3 }, text: '⚠️ High Risk' },
+            { condition: { op: '==', left: 'score', right: 2 }, text: '⚡ Medium Risk' },
+            { condition: { op: '<', left: 'score', right: 2 }, text: '✓ Low Risk' }
+        ];
 
-    const condHigh = workspace.newBlock('logic_compare');
-    condHigh.setFieldValue('GTE', 'OP');
+    // Generate blocks for each risk level
+    riskLevels.forEach(riskLevel => {
+        if (!riskLevel.condition || !riskLevel.text) return;
 
-    const scoreGetHigh = workspace.newBlock('variables_get');
-    scoreGetHigh.setFieldValue(scoreVarId, 'VAR');
-    scoreGetHigh.initSvg();
-    condHigh.getInput('A').connection.connect(scoreGetHigh.outputConnection);
+        const ifBlock = workspace.newBlock('controls_if');
 
-    const numHigh = workspace.newBlock('math_number');
-    numHigh.setFieldValue(3, 'NUM');
-    numHigh.initSvg();
-    condHigh.getInput('B').connection.connect(numHigh.outputConnection);
-    condHigh.initSvg();
+        const condBlock = workspace.newBlock('logic_compare');
+        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+        condBlock.setFieldValue(opMap[riskLevel.condition.op] || 'EQ', 'OP');
 
-    ifHigh.getInput('IF0').connection.connect(condHigh.outputConnection);
+        const scoreGetBlock = workspace.newBlock('variables_get');
+        scoreGetBlock.setFieldValue(scoreVarId, 'VAR');
+        scoreGetBlock.initSvg();
+        condBlock.getInput('A').connection.connect(scoreGetBlock.outputConnection);
 
-    const setHigh = workspace.newBlock('variables_set');
-    setHigh.setFieldValue(riskVarId, 'VAR');
-    const textHigh = workspace.newBlock('text');
-    textHigh.setFieldValue('⚠️ High Risk', 'TEXT');
-    textHigh.initSvg();
-    setHigh.getInput('VALUE').connection.connect(textHigh.outputConnection);
-    setHigh.initSvg();
+        const numBlock = workspace.newBlock('math_number');
+        numBlock.setFieldValue(riskLevel.condition.right, 'NUM');
+        numBlock.initSvg();
+        condBlock.getInput('B').connection.connect(numBlock.outputConnection);
+        condBlock.initSvg();
 
-    ifHigh.getInput('DO0').connection.connect(setHigh.previousConnection);
-    ifHigh.initSvg();
+        ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
 
-    prevBlock.nextConnection.connect(ifHigh.previousConnection);
-    prevBlock = ifHigh;
+        const setBlock = workspace.newBlock('variables_set');
+        setBlock.setFieldValue(riskVarId, 'VAR');
+        const textBlock = workspace.newBlock('text');
+        textBlock.setFieldValue(riskLevel.text, 'TEXT');
+        textBlock.initSvg();
+        setBlock.getInput('VALUE').connection.connect(textBlock.outputConnection);
+        setBlock.initSvg();
 
-    // if score >= 2 AND score < 3 then RiskLevel = "Medium Risk"
-    const ifMed = workspace.newBlock('controls_if');
+        ifBlock.getInput('DO0').connection.connect(setBlock.previousConnection);
+        ifBlock.initSvg();
 
-    const condMed = workspace.newBlock('logic_compare');
-    condMed.setFieldValue('EQ', 'OP');
-
-    const scoreGetMed = workspace.newBlock('variables_get');
-    scoreGetMed.setFieldValue(scoreVarId, 'VAR');
-    scoreGetMed.initSvg();
-    condMed.getInput('A').connection.connect(scoreGetMed.outputConnection);
-
-    const numMed = workspace.newBlock('math_number');
-    numMed.setFieldValue(2, 'NUM');
-    numMed.initSvg();
-    condMed.getInput('B').connection.connect(numMed.outputConnection);
-    condMed.initSvg();
-
-    ifMed.getInput('IF0').connection.connect(condMed.outputConnection);
-
-    const setMed = workspace.newBlock('variables_set');
-    setMed.setFieldValue(riskVarId, 'VAR');
-    const textMed = workspace.newBlock('text');
-    textMed.setFieldValue('⚡ Medium Risk', 'TEXT');
-    textMed.initSvg();
-    setMed.getInput('VALUE').connection.connect(textMed.outputConnection);
-    setMed.initSvg();
-
-    ifMed.getInput('DO0').connection.connect(setMed.previousConnection);
-    ifMed.initSvg();
-
-    prevBlock.nextConnection.connect(ifMed.previousConnection);
-    prevBlock = ifMed;
-
-    // if score < 2 then RiskLevel = "Low Risk"
-    const ifLow = workspace.newBlock('controls_if');
-
-    const condLow = workspace.newBlock('logic_compare');
-    condLow.setFieldValue('LT', 'OP');
-
-    const scoreGetLow = workspace.newBlock('variables_get');
-    scoreGetLow.setFieldValue(scoreVarId, 'VAR');
-    scoreGetLow.initSvg();
-    condLow.getInput('A').connection.connect(scoreGetLow.outputConnection);
-
-    const numLow = workspace.newBlock('math_number');
-    numLow.setFieldValue(2, 'NUM');
-    numLow.initSvg();
-    condLow.getInput('B').connection.connect(numLow.outputConnection);
-    condLow.initSvg();
-
-    ifLow.getInput('IF0').connection.connect(condLow.outputConnection);
-
-    const setLow = workspace.newBlock('variables_set');
-    setLow.setFieldValue(riskVarId, 'VAR');
-    const textLow = workspace.newBlock('text');
-    textLow.setFieldValue('✓ Low Risk', 'TEXT');
-    textLow.initSvg();
-    setLow.getInput('VALUE').connection.connect(textLow.outputConnection);
-    setLow.initSvg();
-
-    ifLow.getInput('DO0').connection.connect(setLow.previousConnection);
-    ifLow.initSvg();
-
-    prevBlock.nextConnection.connect(ifLow.previousConnection);
+        prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        prevBlock = ifBlock;
+    });
 }

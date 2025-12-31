@@ -35,6 +35,7 @@ def parse_formula(text):
     
     current_section = None
     current_rule = None
+    current_risk = None
     
     for line in lines:
         line_stripped = line.strip()
@@ -56,6 +57,9 @@ def parse_formula(text):
         elif line_stripped.startswith('rules:'):
             current_section = 'rules'
             ast['rules'] = []
+        elif line_stripped.startswith('risk_levels:'):
+            current_section = 'risk_levels'
+            ast['risk_levels'] = []
         elif line_stripped.startswith('formula:') and current_section != 'formulas':
             ast['formula'] = line_stripped.split(':', 1)[1].strip()
         elif current_section == 'variables' and ':' in line_stripped:
@@ -80,15 +84,48 @@ def parse_formula(text):
                 # Parse condition string
                 cond_str = current_rule.pop('condition_str', '')
                 current_rule['condition'] = parse_condition_str(cond_str)
+        elif current_section == 'risk_levels':
+            if line_stripped.startswith('- if:') or line_stripped.startswith('if:'):
+                cond_str = line_stripped.split('if:', 1)[1].strip()
+                current_risk = {'condition_str': cond_str}
+                ast['risk_levels'].append(current_risk)
+            elif line_stripped.startswith('text:') and current_risk:
+                text_val = line_stripped.split(':', 1)[1].strip()
+                current_risk['text'] = text_val
+                cond_str = current_risk.pop('condition_str', '')
+                current_risk['condition'] = parse_condition_str(cond_str)
     
     return ast
 
 def parse_condition_str(cond_str):
-    """Parse condition string like 'BMI >= 25' into structured format"""
+    """Parse condition string like 'BMI >= 25' or 'age > 50 and has_disease' into structured format"""
     import re
-    # Match patterns like: BMI >= 25, age == 65, has_disease == true
+    cond_str = cond_str.strip()
+    
+    # Check for compound conditions with 'or' (lower precedence)
+    # Split on ' or ' not inside parentheses
+    or_parts = split_on_operator(cond_str, ' or ')
+    if len(or_parts) > 1:
+        return {
+            'compound': 'or',
+            'conditions': [parse_condition_str(part) for part in or_parts]
+        }
+    
+    # Check for compound conditions with 'and' (higher precedence)
+    and_parts = split_on_operator(cond_str, ' and ')
+    if len(and_parts) > 1:
+        return {
+            'compound': 'and',
+            'conditions': [parse_condition_str(part) for part in and_parts]
+        }
+    
+    # Remove parentheses if wrapped
+    if cond_str.startswith('(') and cond_str.endswith(')'):
+        cond_str = cond_str[1:-1].strip()
+    
+    # Single condition: match pattern like BMI >= 25
     pattern = r'^(\w+)\s*(>=|<=|==|>|<)\s*(.+)$'
-    match = re.match(pattern, cond_str.strip())
+    match = re.match(pattern, cond_str)
     if match:
         left = match.group(1)
         op = match.group(2)
@@ -110,7 +147,78 @@ def parse_condition_str(cond_str):
         
         return {'op': op, 'left': left, 'right': right}
     
+    # Simple boolean variable
+    if cond_str.isidentifier():
+        return {'op': '==', 'left': cond_str, 'right': True}
+    
     return {'op': '==', 'left': 'unknown', 'right': 0}
+
+def evaluate_condition(cond, context):
+    """Evaluate condition (simple or compound) against context values"""
+    if not cond:
+        return False
+    
+    # Handle compound conditions (and/or)
+    if 'compound' in cond:
+        compound_type = cond['compound']
+        sub_conditions = cond.get('conditions', [])
+        
+        if compound_type == 'and':
+            return all(evaluate_condition(sub, context) for sub in sub_conditions)
+        elif compound_type == 'or':
+            return any(evaluate_condition(sub, context) for sub in sub_conditions)
+        return False
+    
+    # Simple condition
+    if not cond.get('left') or not cond.get('op'):
+        return False
+    
+    left_val = context.get(cond['left'])
+    right_val = cond.get('right', 0)
+    op = cond['op']
+    
+    if left_val is None:
+        return False
+    
+    try:
+        if op == ">=":
+            return left_val >= right_val
+        elif op == "<=":
+            return left_val <= right_val
+        elif op == "==":
+            return left_val == right_val
+        elif op == ">":
+            return left_val > right_val
+        elif op == "<":
+            return left_val < right_val
+    except TypeError:
+        return False
+    
+    return False
+
+def split_on_operator(s, op):
+    """Split string on operator, respecting parentheses"""
+    parts = []
+    depth = 0
+    current = ""
+    i = 0
+    while i < len(s):
+        if s[i] == '(':
+            depth += 1
+            current += s[i]
+        elif s[i] == ')':
+            depth -= 1
+            current += s[i]
+        elif depth == 0 and s[i:i+len(op)] == op:
+            parts.append(current.strip())
+            current = ""
+            i += len(op) - 1
+        else:
+            current += s[i]
+        i += 1
+    if current.strip():
+        parts.append(current.strip())
+    return parts
 
 @app.route('/calculate', methods=['POST'])
 def calculate_score():
@@ -128,20 +236,46 @@ def calculate_score():
         allowed_names['sqrt'] = math.sqrt
         allowed_names['pow'] = pow
         allowed_names['abs'] = abs
+        allowed_names['True'] = True
+        allowed_names['False'] = False
         
-        # Create a context with all input values
-        context = dict(inputs)
+        # Create a context with all input values (convert booleans properly)
+        context = {}
+        for k, v in inputs.items():
+            if isinstance(v, bool):
+                context[k] = v
+            elif isinstance(v, str) and v.lower() in ('true', 'false'):
+                context[k] = v.lower() == 'true'
+            else:
+                context[k] = v
         
-        # Step 1: Evaluate any formulas first
+        # Step 1: Evaluate any formulas first (in order, as later formulas may depend on earlier ones)
         if ast.get('formulas'):
             for formula_name, formula_expr in ast['formulas'].items():
                 # Replace variables with values
                 expr = formula_expr
                 for var_name, var_value in context.items():
-                    expr = re.sub(r'\b' + var_name + r'\b', str(var_value), expr)
+                    # Convert Python booleans to proper format for eval
+                    if isinstance(var_value, bool):
+                        replacement = 'True' if var_value else 'False'
+                    else:
+                        replacement = str(var_value)
+                    expr = re.sub(r'\b' + var_name + r'\b', replacement, expr)
+                
+                # Handle 'if...else' conditional expressions (convert to Python ternary)
+                # Pattern: "value1 if condition else value2"
+                # This is already valid Python syntax, just needs proper boolean handling
+                expr = expr.replace(' true ', ' True ').replace(' false ', ' False ')
+                expr = expr.replace('(true)', '(True)').replace('(false)', '(False)')
+                
                 # Evaluate and store result
-                result = eval(expr, allowed_names)
-                context[formula_name] = result
+                try:
+                    result = eval(expr, allowed_names)
+                    context[formula_name] = result
+                except Exception as e:
+                    # If formula fails, store error message but continue
+                    context[formula_name] = 0
+                    print(f"Formula error for {formula_name}: {e}")
         
         # Step 2: Check if pure formula type
         if ast.get('type') == 'formula' and ast.get('formula'):
@@ -162,29 +296,8 @@ def calculate_score():
                 cond = rule.get('condition', {})
                 action = rule.get('action', {})
                 
-                # Skip if condition is incomplete
-                if not cond.get('left') or not cond.get('op'):
-                    continue
-                
-                # Get left value - could be from inputs or computed formulas
-                left_val = context.get(cond['left'])
-                right_val = cond.get('right', 0)
-                op = cond['op']
-                
-                if left_val is None:
-                    continue
-                    
-                matched = False
-                if op == ">=":
-                    matched = left_val >= right_val
-                elif op == "<=":
-                    matched = left_val <= right_val
-                elif op == "==":
-                    matched = left_val == right_val
-                elif op == ">":
-                    matched = left_val > right_val
-                elif op == "<":
-                    matched = left_val < right_val
+                # Evaluate condition (supports compound and/or)
+                matched = evaluate_condition(cond, context)
                     
                 if matched:
                     if action.get('type') == 'add':
@@ -227,63 +340,82 @@ def chat_generate_rules():
     if not user_message:
         return jsonify({"error": "No message provided"}), 400
     
-    prompt = f"""You are a medical formula/rule assistant. Based on the user's request, generate the appropriate format.
+    prompt = f"""You are a medical risk scoring assistant. Generate a complete, working scoring structure based on the user's request.
 
 User's request: {user_message}
 
-FORMAT 1 - Pure FORMULA (like BMI, GFR calculations):
+REQUIRED FORMAT:
 ```
-formula_name: [Name]
+score_name: [ScoreName]
 variables:
   [var1]: int
   [var2]: int
-formula: [mathematical expression]
-```
-
-FORMAT 2 - Pure SCORING RULES (simple condition-based):
-```
-score_name: [Name]
-variables:
-  [var1]: int
-  [var2]: boolean
-rules:
-  - if: [condition]
-    add: [number]
-```
-
-FORMAT 3 - SCORING WITH FORMULAS (PREFERRED when rules use calculated values like BMI):
-```
-score_name: [Name]
-variables:
-  [var1]: int
-  [var2]: int
+  [bool_var]: boolean
 formulas:
-  [calculated_name]: [formula expression]
+  dummy: 0
 rules:
-  - if: [calculated_name] [op] [value]
+  - if: [var] [op] [value]
     add: [number]
+risk_levels:
+  - if: score >= [high]
+    text: ⚠️ [High risk text]
+  - if: score >= [medium]
+    text: ⚡ [Medium risk text]
+  - if: score < [medium]
+    text: ✓ [Low risk text]
 ```
 
-EXAMPLE for FORMAT 3:
+EXAMPLE - SOFA Score (ICU Mortality):
 ```
-score_name: ObesityRisk
+score_name: SOFA_Score
 variables:
-  weight: int
-  height: int
+  pao2_fio2: int
+  platelets: int
+  bilirubin: int
+  map: int
+  dopamine: int
+  gcs: int
+  creatinine: int
 formulas:
-  BMI: weight / (height * height)
+  dummy: 0
 rules:
-  - if: BMI >= 25
+  - if: pao2_fio2 < 400
     add: 1
-  - if: BMI >= 30
-    add: 2
+  - if: pao2_fio2 < 300
+    add: 1
+  - if: platelets < 150
+    add: 1
+  - if: platelets < 100
+    add: 1
+  - if: bilirubin >= 2
+    add: 1
+  - if: map < 70 or dopamine > 0
+    add: 1
+  - if: dopamine > 5
+    add: 1
+  - if: gcs < 15
+    add: 1
+  - if: gcs < 10
+    add: 1
+  - if: creatinine >= 2
+    add: 1
+risk_levels:
+  - if: score >= 12
+    text: ⚠️ 高危 - 死亡率 >35%
+  - if: score >= 6
+    text: ⚡ 中危 - 死亡率 20-30%
+  - if: score < 6
+    text: ✓ 低危 - 死亡率 <15%
 ```
 
-Important:
-- Use FORMAT 3 when rules reference calculated values
-- Math operators: +, -, *, /, **
-- Condition operators: >=, <=, ==, >, <
-- Respond with ONLY the structure, no explanation
+STRICT RULES:
+1. Include ALL 5 sections: score_name, variables, formulas, rules, risk_levels
+2. Variable names: use simple snake_case (e.g., age, blood_pressure, gcs)
+3. Variable types: int or boolean ONLY
+4. Formulas: if none needed, use "dummy: 0"
+5. Compound conditions: use "and" / "or" (e.g., "if: map < 70 or dopamine > 0")
+6. NO comments (no # symbols)
+7. Return ONLY the structure, no explanations
 
 Generate:"""
 

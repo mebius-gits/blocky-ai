@@ -422,6 +422,14 @@ rules:
             )}
             <div className="score-label">{ast?.formula ? 'Result' : 'Final Score'}</div>
             <div className="score-value">{typeof score === 'number' ? score.toFixed(2) : score}</div>
+
+            {/* Score interpretation */}
+            {!ast?.formula && (
+              <div className={`score-meaning ${score >= 3 ? 'high' : score >= 2 ? 'medium' : 'low'}`}>
+                {score >= 3 ? '⚠️ High Risk' : score >= 2 ? '⚡ Medium Risk' : '✓ Low Risk'}
+              </div>
+            )}
+
             {selectedPatient && <div className="patient-tag">for {selectedPatient.name}</div>}
           </div>
         )}

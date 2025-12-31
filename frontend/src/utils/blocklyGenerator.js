@@ -369,4 +369,111 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
         prevBlock.nextConnection.connect(ifBlock.previousConnection);
         prevBlock = ifBlock;
     });
+
+    // Step 4: Add score interpretation blocks (set RiskLevel text)
+    // Create RiskLevel variable
+    let riskVar = workspace.getVariable('RiskLevel');
+    if (!riskVar) {
+        riskVar = workspace.createVariable('RiskLevel', 'String');
+    }
+    const riskVarId = riskVar.getId();
+
+    // if score >= 3 then RiskLevel = "High Risk"
+    const ifHigh = workspace.newBlock('controls_if');
+    ifHigh.updateShape_();  // Ensure inputs exist
+
+    const condHigh = workspace.newBlock('logic_compare');
+    condHigh.setFieldValue('GTE', 'OP');
+
+    const scoreGetHigh = workspace.newBlock('variables_get');
+    scoreGetHigh.setFieldValue(scoreVarId, 'VAR');
+    scoreGetHigh.initSvg();
+    condHigh.getInput('A').connection.connect(scoreGetHigh.outputConnection);
+
+    const numHigh = workspace.newBlock('math_number');
+    numHigh.setFieldValue(3, 'NUM');
+    numHigh.initSvg();
+    condHigh.getInput('B').connection.connect(numHigh.outputConnection);
+    condHigh.initSvg();
+
+    ifHigh.getInput('IF0').connection.connect(condHigh.outputConnection);
+
+    const setHigh = workspace.newBlock('variables_set');
+    setHigh.setFieldValue(riskVarId, 'VAR');
+    const textHigh = workspace.newBlock('text');
+    textHigh.setFieldValue('⚠️ High Risk', 'TEXT');
+    textHigh.initSvg();
+    setHigh.getInput('VALUE').connection.connect(textHigh.outputConnection);
+    setHigh.initSvg();
+
+    ifHigh.getInput('DO0').connection.connect(setHigh.previousConnection);
+    ifHigh.initSvg();
+
+    prevBlock.nextConnection.connect(ifHigh.previousConnection);
+    prevBlock = ifHigh;
+
+    // if score >= 2 AND score < 3 then RiskLevel = "Medium Risk"
+    const ifMed = workspace.newBlock('controls_if');
+
+    const condMed = workspace.newBlock('logic_compare');
+    condMed.setFieldValue('EQ', 'OP');
+
+    const scoreGetMed = workspace.newBlock('variables_get');
+    scoreGetMed.setFieldValue(scoreVarId, 'VAR');
+    scoreGetMed.initSvg();
+    condMed.getInput('A').connection.connect(scoreGetMed.outputConnection);
+
+    const numMed = workspace.newBlock('math_number');
+    numMed.setFieldValue(2, 'NUM');
+    numMed.initSvg();
+    condMed.getInput('B').connection.connect(numMed.outputConnection);
+    condMed.initSvg();
+
+    ifMed.getInput('IF0').connection.connect(condMed.outputConnection);
+
+    const setMed = workspace.newBlock('variables_set');
+    setMed.setFieldValue(riskVarId, 'VAR');
+    const textMed = workspace.newBlock('text');
+    textMed.setFieldValue('⚡ Medium Risk', 'TEXT');
+    textMed.initSvg();
+    setMed.getInput('VALUE').connection.connect(textMed.outputConnection);
+    setMed.initSvg();
+
+    ifMed.getInput('DO0').connection.connect(setMed.previousConnection);
+    ifMed.initSvg();
+
+    prevBlock.nextConnection.connect(ifMed.previousConnection);
+    prevBlock = ifMed;
+
+    // if score < 2 then RiskLevel = "Low Risk"
+    const ifLow = workspace.newBlock('controls_if');
+
+    const condLow = workspace.newBlock('logic_compare');
+    condLow.setFieldValue('LT', 'OP');
+
+    const scoreGetLow = workspace.newBlock('variables_get');
+    scoreGetLow.setFieldValue(scoreVarId, 'VAR');
+    scoreGetLow.initSvg();
+    condLow.getInput('A').connection.connect(scoreGetLow.outputConnection);
+
+    const numLow = workspace.newBlock('math_number');
+    numLow.setFieldValue(2, 'NUM');
+    numLow.initSvg();
+    condLow.getInput('B').connection.connect(numLow.outputConnection);
+    condLow.initSvg();
+
+    ifLow.getInput('IF0').connection.connect(condLow.outputConnection);
+
+    const setLow = workspace.newBlock('variables_set');
+    setLow.setFieldValue(riskVarId, 'VAR');
+    const textLow = workspace.newBlock('text');
+    textLow.setFieldValue('✓ Low Risk', 'TEXT');
+    textLow.initSvg();
+    setLow.getInput('VALUE').connection.connect(textLow.outputConnection);
+    setLow.initSvg();
+
+    ifLow.getInput('DO0').connection.connect(setLow.previousConnection);
+    ifLow.initSvg();
+
+    prevBlock.nextConnection.connect(ifLow.previousConnection);
 }

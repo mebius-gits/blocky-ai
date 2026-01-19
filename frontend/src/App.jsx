@@ -434,21 +434,36 @@ risk_levels:
           {variables.length === 0 ? (
             <div className="empty-state">Parse rules to see variables</div>
           ) : (
-            variables.map(v => (
-              <div key={v} className="var-row">
-                <label>{v}</label>
-                <input
-                  type={ast.variables[v] === 'int' ? 'number' : 'text'}
-                  value={inputs[v] !== undefined ? String(inputs[v]) : ''}
-                  onChange={(e) => {
-                    const val = ast.variables[v] === 'int'
-                      ? Number(e.target.value)
-                      : e.target.value === 'true';
-                    updateInput(v, val);
-                  }}
-                />
-              </div>
-            ))
+            variables.map(v => {
+              const varType = (ast.variables[v] || 'int').toLowerCase();
+              const isBoolean = varType === 'boolean' || varType === 'bool';
+              const isNumber = varType === 'int' || varType === 'number' || varType === 'float';
+
+              return (
+                <div key={v} className="var-row">
+                  <label>{v}</label>
+                  {isBoolean ? (
+                    <input
+                      type="checkbox"
+                      checked={!!inputs[v]}
+                      onChange={(e) => updateInput(v, e.target.checked)}
+                      className="checkbox-input"
+                    />
+                  ) : (
+                    <input
+                      type={isNumber ? 'number' : 'text'}
+                      value={inputs[v] !== undefined ? String(inputs[v]) : ''}
+                      onChange={(e) => {
+                        const val = isNumber
+                          ? Number(e.target.value)
+                          : e.target.value;
+                        updateInput(v, val);
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 

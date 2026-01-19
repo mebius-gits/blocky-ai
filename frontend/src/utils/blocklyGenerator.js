@@ -305,7 +305,7 @@ function createConditionBlock(condition, workspace, varMap, scoreVarId) {
     }
 
     // Simple condition (left op right)
-    if (!condition.left || !condition.op) return null;
+    if (!condition.left || !condition.op || condition.left === 'unknown') return null;
 
     const condBlock = workspace.newBlock('logic_compare');
     const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };

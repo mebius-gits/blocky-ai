@@ -123,13 +123,20 @@ def parse_condition_str(cond_str):
     if cond_str.startswith('(') and cond_str.endswith(')'):
         cond_str = cond_str[1:-1].strip()
     
-    # Single condition: match pattern like BMI >= 25
-    pattern = r'^(\w+)\s*(>=|<=|==|>|<)\s*(.+)$'
-    match = re.match(pattern, cond_str)
+    # Single condition: match pattern like BMI >= 25 or diabetes_present is true
+    # Added support for 'is' and 'is not' operators
+    pattern = r'^(\w+)\s*(>=|<=|==|>|<|is\s+not|is)\s*(.+)$'
+    match = re.match(pattern, cond_str, re.IGNORECASE)
     if match:
         left = match.group(1)
-        op = match.group(2)
+        op = match.group(2).strip().lower()
         right_str = match.group(3).strip()
+        
+        # Map 'is' to '==' and 'is not' to '!='
+        if op == 'is':
+            op = '=='
+        elif op == 'is not':
+            op = '!='
         
         # Convert right value
         if right_str.lower() == 'true':
@@ -138,20 +145,23 @@ def parse_condition_str(cond_str):
             right = False
         else:
             try:
-                right = int(right_str)
+                # Try float first (handles both "3" and "3.0")
+                right = float(right_str)
+                # Convert to int if it's a whole number
+                if right == int(right):
+                    right = int(right)
             except:
-                try:
-                    right = float(right_str)
-                except:
-                    right = right_str
+                right = right_str
         
         return {'op': op, 'left': left, 'right': right}
     
-    # Simple boolean variable
+    # Simple boolean variable (e.g., "diabetes_present" alone means == true)
     if cond_str.isidentifier():
         return {'op': '==', 'left': cond_str, 'right': True}
     
-    return {'op': '==', 'left': 'unknown', 'right': 0}
+    # Return None for unparseable conditions (will be skipped)
+    print(f"Warning: Could not parse condition: '{cond_str}'")
+    return None
 
 def evaluate_condition(cond, context):
     """Evaluate condition (simple or compound) against context values"""
@@ -302,8 +312,26 @@ def calculate_score():
                 if matched:
                     if action.get('type') == 'add':
                         score += action.get('value', 0)
+            
+            # Step 4: Evaluate risk_levels to determine RiskLevel
+            risk_level = None
+            if ast.get('risk_levels'):
+                # Add score to context for risk level evaluation
+                risk_context = {**context, 'score': score}
+                for risk in ast.get('risk_levels', []):
+                    if not risk or 'condition' not in risk:
+                        continue
+                    cond = risk.get('condition', {})
+                    if evaluate_condition(cond, risk_context):
+                        risk_level = risk.get('text', '')
+                        break  # First matching risk level wins
+            
+            # Build computed values
+            computed_values = {k: round(v, 2) if isinstance(v, float) else v for k, v in context.items() if k not in inputs}
+            if risk_level:
+                computed_values['RiskLevel'] = risk_level
                         
-            return jsonify({"score": score, "computed": {k: round(v, 2) if isinstance(v, float) else v for k, v in context.items() if k not in inputs}})
+            return jsonify({"score": score, "computed": computed_values, "risk_level": risk_level})
         
         # Fallback for pure formula without type field
         if ast.get('formula'):

@@ -552,6 +552,46 @@ body {
   border-color: var(--accent);
 }
 
+/* Checkbox Input for Boolean Variables */
+.var-row input[type="checkbox"],
+.var-row input.checkbox-input {
+  width: 44px;
+  height: 24px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.var-row input[type="checkbox"]::before,
+.var-row input.checkbox-input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.var-row input[type="checkbox"]:checked,
+.var-row input.checkbox-input:checked {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.var-row input[type="checkbox"]:checked::before,
+.var-row input.checkbox-input:checked::before {
+  transform: translateX(20px);
+  background: white;
+}
+
 /* Score Card */
 .score-card {
   background: linear-gradient(135deg, var(--success), #059669);

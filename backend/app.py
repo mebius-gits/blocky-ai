@@ -1,18 +1,35 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, Any, Dict
 from parser_ai import parse_document_ai
 import re
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
-@app.route('/parse', methods=['POST'])
-def parse_rule_doc():
-    data = request.get_json()
-    if not data or 'text' not in data:
-        return jsonify({"error": "No text provided"}), 400
-    
-    text = data['text']
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Pydantic models for request validation
+class ParseRequest(BaseModel):
+    text: str
+
+class CalculateRequest(BaseModel):
+    ast: Dict[str, Any]
+    inputs: Optional[Dict[str, Any]] = {}
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post('/parse')
+async def parse_rule_doc(request: ParseRequest):
+    text = request.text
     try:
         # Check if it's a structured format (formula, score, or combined)
         if any(keyword in text.lower() for keyword in ['formula:', 'formula_name:', 'formulas:', 'score_name:']):
@@ -21,9 +38,9 @@ def parse_rule_doc():
         else:
             # Use AI Parser for natural language
             ast = parse_document_ai(text)
-        return jsonify(ast)
+        return ast
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 def parse_formula(text):
     """Parse formula, score, or combined score_with_formula format"""
@@ -230,14 +247,10 @@ def split_on_operator(s, op):
         parts.append(current.strip())
     return parts
 
-@app.route('/calculate', methods=['POST'])
-def calculate_score():
-    data = request.get_json()
-    ast = data.get('ast')
-    inputs = data.get('inputs', {})
-    
-    if not ast:
-        return jsonify({"error": "No AST provided"}), 400
+@app.post('/calculate')
+async def calculate_score(request: CalculateRequest):
+    ast = request.ast
+    inputs = request.inputs or {}
     
     try:
         # Setup safe eval environment
@@ -293,7 +306,7 @@ def calculate_score():
             for var_name, var_value in context.items():
                 formula = re.sub(r'\b' + var_name + r'\b', str(var_value), formula)
             result = eval(formula, allowed_names)
-            return jsonify({"result": round(result, 2)})
+            return {"result": round(result, 2)}
         
         # Step 3: Score-based calculation (with formula support)
         if ast.get('rules'):
@@ -331,7 +344,7 @@ def calculate_score():
             if risk_level:
                 computed_values['RiskLevel'] = risk_level
                         
-            return jsonify({"score": score, "computed": computed_values, "risk_level": risk_level})
+            return {"score": score, "computed": computed_values, "risk_level": risk_level}
         
         # Fallback for pure formula without type field
         if ast.get('formula'):
@@ -339,15 +352,17 @@ def calculate_score():
             for var_name, var_value in context.items():
                 formula = re.sub(r'\b' + var_name + r'\b', str(var_value), formula)
             result = eval(formula, allowed_names)
-            return jsonify({"result": round(result, 2)})
+            return {"result": round(result, 2)}
             
-        return jsonify({"error": "Unknown AST type"}), 400
+        raise HTTPException(status_code=400, detail="Unknown AST type")
         
+    except HTTPException:
+        raise
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/chat', methods=['POST'])
-def chat_generate_rules():
+@app.post('/chat')
+async def chat_generate_rules(request: ChatRequest):
     """Generate rule structure from natural language description"""
     import google.generativeai as genai
     import os
@@ -358,15 +373,14 @@ def chat_generate_rules():
     model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
     
     genai.configure(api_key=api_key)
     
-    data = request.get_json()
-    user_message = data.get('message', '')
+    user_message = request.message
     
     if not user_message:
-        return jsonify({"error": "No message provided"}), 400
+        raise HTTPException(status_code=400, detail="No message provided")
     
     prompt = f"""You are a medical risk scoring assistant. Generate a complete, working scoring structure based on the user's request.
 
@@ -458,12 +472,13 @@ Generate:"""
             clean_lines = [l for l in lines if not l.strip().startswith('```')]
             generated_text = '\n'.join(clean_lines)
         
-        return jsonify({
+        return {
             "reply": "Generated! Click 'Use This' to load it.",
             "generated_rules": generated_text.strip()
-        })
+        }
     except Exception as e:
-        return jsonify({"error": f"AI generation failed: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)

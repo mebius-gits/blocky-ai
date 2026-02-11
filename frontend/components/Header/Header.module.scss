@@ -1,0 +1,111 @@
+@import '../../styles/variables.scss';
+
+.floatingHeader {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 90vw;
+  flex-wrap: wrap;
+  background: $bg-panel;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 10px 20px;
+  border-radius: $border-radius-pill;
+  border: 1px solid $border;
+  box-shadow: $shadow-header;
+
+  h1 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $primary-teal;
+    letter-spacing: -0.02em;
+    text-align: center;
+  }
+}
+
+.backBtn {
+  min-height: $touch-min-height;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid $border;
+  border-radius: $border-radius-sm;
+  color: $text-secondary;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: $surface-pale;
+    color: $text-primary;
+    border-color: $border-hover;
+  }
+}
+
+.version {
+  font-size: 0.65rem;
+  color: $text-secondary;
+  background: $surface-pale;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+// ===== 響應式設計 =====
+
+// 平板 (768px - 1024px)
+@media (max-width: 1024px) {
+  .floatingHeader {
+    top: 15px;
+    padding: 8px 16px;
+    gap: 10px;
+
+    h1 {
+      font-size: 0.9rem;
+    }
+  }
+
+  .version {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+  }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+  .floatingHeader {
+    top: 10px;
+    padding: 8px 14px;
+    gap: 8px;
+
+    h1 {
+      font-size: 0.85rem;
+    }
+  }
+
+  .version {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+  }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+  .floatingHeader {
+    top: 8px;
+    padding: 6px 12px;
+    gap: 6px;
+
+    h1 {
+      font-size: 0.75rem;
+    }
+  }
+
+  .version {
+    display: none; // 在小屏幕上隱藏版本號
+  }
+}

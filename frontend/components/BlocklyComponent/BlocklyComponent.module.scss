@@ -1,0 +1,317 @@
+@import '../../styles/variables.scss';
+
+// ===============================================
+//   Blockly 簡約淺色主題樣式
+// ===============================================
+
+// Blockly 專用變量（與 blocklyMedicalTheme.ts 低飽和醫療用色一致）
+$blockly-bg: #fafafa;
+$blockly-grid: rgba(0, 0, 0, 0.06);
+// 連接/高亮用色（muted medical）；文字/主色使用 variables 的 $text-primary、$primary-teal
+$blockly-accent: #5c7c99;
+
+.blocklyContainer {
+  width: 100%;
+  height: 100%;
+
+  > div {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  // ===== 工作區背景 =====
+  :global(.blocklyMainBackground) {
+    fill: $blockly-bg !important;
+  }
+
+  :global(.blocklyScrollbarBackground) {
+    fill: transparent !important;
+  }
+
+  // ===== 滾動條樣式 =====
+  :global(.blocklyScrollbarVertical),
+  :global(.blocklyScrollbarHorizontal) {
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  :global(.blocklyScrollbarHandle) {
+    fill: rgba(0, 0, 0, 0.12) !important;
+    rx: 4px !important;
+    ry: 4px !important;
+    transition: fill 0.2s ease !important;
+
+    &:hover {
+      fill: rgba(0, 0, 0, 0.2) !important;
+    }
+  }
+
+  // ===== 積木樣式 =====
+  :global(.blocklyBlockBackground),
+  :global(.blocklyPath) {
+    stroke-width: 1.5px !important;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)) !important;
+    transition: filter 0.2s ease !important;
+  }
+
+  // 積木文字（全部統一 #18304E）
+  :global(.blocklyText),
+  :global(.blocklyEditableText) {
+    fill: #18304E !important;
+    font-family: $font-main !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+  }
+
+  // 積木標籤
+  :global(.blocklyBlockText) {
+    fill: #18304E !important;
+    font-weight: 700 !important;
+  }
+
+  // 下拉選單與積木上的下拉欄位
+  :global(.blocklyDropDownContent .blocklyMenuItem) {
+    color: #18304E !important;
+  }
+  :global(.blocklyDropdownText) {
+    fill: #18304E !important;
+  }
+
+  :global(.blocklyFlyoutLabelText) {
+    fill: #18304E !important;
+  }
+
+  // 輸入字段
+  :global(.blocklyEditableText > rect) {
+    fill: rgba(0, 0, 0, 0.05) !important;
+    stroke: rgba(0, 0, 0, 0.15) !important;
+    rx: 4px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  :global(.blocklyEditableText:hover > rect) {
+    fill: rgba(0, 0, 0, 0.08) !important;
+    stroke: rgba(0, 0, 0, 0.25) !important;
+  }
+
+  // ===== 連接點/連接線樣式（muted medical accent） =====
+  :global(.blocklyHighlightedConnectionPath) {
+    stroke: $blockly-accent !important;
+    stroke-width: 3px !important;
+    fill: none !important;
+    stroke-dasharray: 5, 5 !important;
+    animation: dash 0.5s linear infinite !important;
+  }
+
+  :global(.blocklyConnectionHighlight) {
+    stroke: $blockly-accent !important;
+    stroke-width: 3px !important;
+    fill: $blockly-accent !important;
+    opacity: 0.8 !important;
+  }
+
+  // Block fill colours are driven by blocklyMedicalTheme.ts; no SCSS overrides.
+
+  // ===== 選中狀態（muted glow） =====
+  :global(.blocklySelected > .blocklyBlockBackground),
+  :global(.blocklySelected > .blocklyPath) {
+    filter: drop-shadow(0 4px 12px $accent-glow) !important;
+    stroke-width: 2px !important;
+  }
+
+  // ===== Hover 狀態 =====
+  :global(.blocklyDraggable:hover > .blocklyBlockBackground),
+  :global(.blocklyDraggable:hover > .blocklyPath) {
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.15)) brightness(1.02) !important;
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -10;
+    }
+  }
+
+  // ===== 網格樣式 =====
+  :global(.blocklyGridPattern > line) {
+    stroke: $blockly-grid !important;
+    stroke-width: 0.5px !important;
+  }
+
+  // ===== 垃圾桶樣式 =====
+  :global(.blocklyTrash) {
+    fill: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  :global(.blocklyTrash:hover) {
+    fill: rgba(239, 68, 68, 0.15) !important;
+  }
+
+  // ===== 縮放控制 =====
+  :global(.blocklyZoomControl) {
+    opacity: 0.8 !important;
+    transition: opacity 0.2s ease !important;
+  }
+
+  :global(.blocklyZoomControl:hover) {
+    opacity: 1 !important;
+  }
+
+  :global(.blocklyZoomControl button) {
+    fill: rgba(0, 0, 0, 0.08) !important;
+    stroke: rgba(0, 0, 0, 0.2) !important;
+    transition: all 0.2s ease !important;
+  }
+
+  :global(.blocklyZoomControl button:hover) {
+    fill: rgba(0, 0, 0, 0.12) !important;
+    stroke: $blockly-accent !important;
+  }
+
+  // ===== 工具提示 =====
+  :global(.blocklyTooltipDiv) {
+    background: $surface-white !important;
+    border: 1px solid $border !important;
+    border-radius: $border-radius-sm !important;
+    color: #18304E !important;
+    font-family: $font-main !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+    box-shadow: $shadow-panel !important;
+  }
+
+  // ===== 上下文菜單 =====
+  :global(.blocklyContextMenu) {
+    background: $surface-white !important;
+    border: 1px solid $border !important;
+    border-radius: $border-radius-md !important;
+    box-shadow: $shadow-panel !important;
+  }
+
+  :global(.blocklyContextMenu .goog-menuitem) {
+    color: #18304E !important;
+    font-family: $font-main !important;
+    padding: 8px 16px !important;
+    transition: background 0.2s ease !important;
+
+    &:hover {
+      background: rgba(0, 121, 107, 0.08) !important;
+    }
+  }
+
+  // ===== 輸入連接點 =====
+  :global(.blocklyInput) {
+    stroke: rgba(0, 0, 0, 0.15) !important;
+    stroke-width: 1px !important;
+  }
+
+  // ===== 改善間距 =====
+  :global(.blocklyBlockDraggable) {
+    margin: 4px !important;
+  }
+
+  // ===== 改善文字輸入框 =====
+  :global(.blocklyEditableText > text) {
+    fill: #18304E !important;
+  }
+
+  :global(.blocklyEditableText > rect) {
+    rx: 4px !important;
+    ry: 4px !important;
+  }
+}
+
+// ===== 響應式設計 =====
+
+// 平板 (768px - 1024px)
+@media (max-width: 1024px) {
+  .blocklyContainer {
+    :global(.blocklyText),
+    :global(.blocklyEditableText) {
+      font-size: 13px !important; // 視窗變窄時稍微放大
+    }
+
+    :global(.blocklyBlockText) {
+      font-size: 13px !important;
+    }
+
+    :global(.blocklyZoomControl) {
+      transform: scale(0.9);
+    }
+  }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+  .blocklyContainer {
+    // 確保 Blockly 在移動設備上可以觸控操作
+    touch-action: pan-x pan-y pinch-zoom;
+    
+    :global(.blocklyText),
+    :global(.blocklyEditableText) {
+      font-size: 13px !important; // 手機再放大一級
+    }
+
+    :global(.blocklyBlockText) {
+      font-size: 13px !important;
+    }
+
+    :global(.blocklyZoomControl) {
+      transform: scale(0.85);
+      bottom: 10px !important;
+      right: 10px !important;
+      // 增加觸控目標大小
+      button {
+        min-width: 44px;
+        min-height: 44px;
+      }
+    }
+
+    :global(.blocklyGridPattern > line) {
+      stroke-width: 0.3px !important;
+    }
+
+    :global(.blocklyBlockBackground),
+    :global(.blocklyPath) {
+      stroke-width: 1px !important;
+    }
+
+    // 改善觸控體驗
+    :global(.blocklyDraggable) {
+      touch-action: none;
+    }
+
+    // 確保垃圾桶在移動設備上可用
+    :global(.blocklyTrash) {
+      min-width: 44px;
+      min-height: 44px;
+      bottom: 10px !important;
+      left: 10px !important;
+    }
+  }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+  .blocklyContainer {
+    :global(.blocklyText),
+    :global(.blocklyEditableText) {
+      font-size: 13px !important; // 最小螢幕給最大字級，確保可讀
+    }
+
+    :global(.blocklyBlockText) {
+      font-size: 13px !important;
+    }
+
+    :global(.blocklyZoomControl) {
+      transform: scale(0.75);
+      bottom: 8px !important;
+      right: 8px !important;
+    }
+
+    :global(.blocklyTrash) {
+      transform: scale(0.9);
+      bottom: 10px !important;
+      left: 10px !important;
+    }
+  }
+}

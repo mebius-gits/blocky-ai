@@ -1,0 +1,196 @@
+@import '../../styles/variables.scss';
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  width: 90%;
+  max-width: 480px;
+  max-height: 80vh;
+  @include glass-panel;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid $border;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.closeBtn {
+  min-width: $touch-min-height;
+  min-height: $touch-min-height;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid $border;
+  border-radius: $border-radius-sm;
+  color: $text-secondary;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    border-color: $border-hover;
+    background: $surface-pale;
+  }
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px 20px;
+}
+
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: $text-secondary;
+  font-size: 0.9rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: $surface-pale;
+  border: 1px solid $border;
+  border-radius: $border-radius-sm;
+}
+
+.itemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemName {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: $text-primary;
+}
+
+.itemDate {
+  font-size: 0.75rem;
+  color: $text-secondary;
+}
+
+.itemActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btnLoad {
+  @include button-primary;
+  padding: 8px 12px;
+  font-size: 0.7rem;
+}
+
+.btnDelete {
+  min-height: $touch-min-height;
+  padding: 8px 12px;
+  font-size: 0.7rem;
+  background: transparent;
+  border: 1px solid $border;
+  border-radius: $border-radius-sm;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $error;
+    color: $error;
+    background: $surface-pale;
+  }
+}
+
+// ===== 響應式設計 =====
+@media (max-width: 480px) {
+  .modal {
+    width: 95%;
+    max-height: 85vh;
+  }
+
+  .header {
+    padding: 14px 16px;
+  }
+
+  .title {
+    font-size: 0.9rem;
+  }
+
+  .body {
+    padding: 10px 16px 16px;
+  }
+
+  .item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .itemActions {
+    justify-content: flex-end;
+  }
+
+  .btnLoad,
+  .btnDelete {
+    flex: 1;
+    min-width: 0;
+  }
+}

@@ -1,11 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from parser_ai import parse_document_ai
+from sqlalchemy.orm import Session
 import re
 
 import os
+
+# Database imports
+from database import get_db, init_db
+import crud
+import schemas
 
 # Get root path from environment variable (for reverse proxy support)
 ROOT_PATH = os.getenv("ROOT_PATH", "")
@@ -490,6 +496,131 @@ Generate:"""
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# Database Initialization
+# ──────────────────────────────────────────────
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+
+# ──────────────────────────────────────────────
+# Department CRUD Endpoints
+# ──────────────────────────────────────────────
+
+@app.post('/departments', response_model=schemas.DepartmentListItem, status_code=201)
+async def create_department(data: schemas.DepartmentCreate, db: Session = Depends(get_db)):
+    """Create a new department."""
+    try:
+        return crud.create_department(db, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get('/departments', response_model=List[schemas.DepartmentListItem])
+async def list_departments(db: Session = Depends(get_db)):
+    """List all departments."""
+    return crud.get_departments(db)
+
+
+@app.get('/departments/{department_id}', response_model=schemas.DepartmentResponse)
+async def get_department(department_id: int, db: Session = Depends(get_db)):
+    """Get a single department with its formulas."""
+    dept = crud.get_department(db, department_id)
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    return dept
+
+
+@app.put('/departments/{department_id}', response_model=schemas.DepartmentListItem)
+async def update_department(
+    department_id: int,
+    data: schemas.DepartmentUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update a department."""
+    dept = crud.update_department(db, department_id, data)
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    return dept
+
+
+@app.delete('/departments/{department_id}')
+async def delete_department(department_id: int, db: Session = Depends(get_db)):
+    """Delete a department and all its formulas."""
+    success = crud.delete_department(db, department_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Department not found")
+    return {"detail": "Department deleted"}
+
+
+# ──────────────────────────────────────────────
+# Formula CRUD Endpoints
+# ──────────────────────────────────────────────
+
+@app.post(
+    '/departments/{department_id}/formulas',
+    response_model=schemas.FormulaResponse,
+    status_code=201,
+)
+async def create_formula(
+    department_id: int,
+    data: schemas.FormulaCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a formula under a specific department."""
+    # Verify department exists
+    dept = crud.get_department(db, department_id)
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    try:
+        return crud.create_formula(db, department_id, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get('/formulas', response_model=List[schemas.FormulaResponse])
+async def list_formulas(
+    department_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """List all formulas. Optionally filter by department_id."""
+    return crud.get_formulas(db, department_id)
+
+
+@app.get('/formulas/{formula_id}', response_model=schemas.FormulaResponse)
+async def get_formula(formula_id: int, db: Session = Depends(get_db)):
+    """Get a single formula."""
+    formula = crud.get_formula(db, formula_id)
+    if not formula:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    return formula
+
+
+@app.put('/formulas/{formula_id}', response_model=schemas.FormulaResponse)
+async def update_formula(
+    formula_id: int,
+    data: schemas.FormulaUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update a formula."""
+    formula = crud.update_formula(db, formula_id, data)
+    if not formula:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    return formula
+
+
+@app.delete('/formulas/{formula_id}')
+async def delete_formula(formula_id: int, db: Session = Depends(get_db)):
+    """Delete a formula."""
+    success = crud.delete_formula(db, formula_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    return {"detail": "Formula deleted"}
+
 
 if __name__ == '__main__':
     import uvicorn

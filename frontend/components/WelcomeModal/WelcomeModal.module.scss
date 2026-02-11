@@ -1,0 +1,358 @@
+@import '../../styles/variables.scss';
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modalContent {
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh;
+    @include glass-panel;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// Header
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid $border;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logoIcon {
+    font-size: 1.5rem;
+}
+
+.logoText {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: $text-primary;
+}
+
+.skipBtn {
+    min-height: $touch-min-height;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid $border;
+    border-radius: $border-radius-pill;
+    color: $text-secondary;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+        background: $surface-pale;
+        color: $text-primary;
+        border-color: $border-hover;
+    }
+}
+
+// Chat Area
+.chatArea {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 24px;
+    overflow: hidden;
+    min-height: 300px;
+}
+
+// Quick Prompts
+.quickPrompts {
+    margin-bottom: 20px;
+}
+
+.promptsLabel {
+    font-size: 0.75rem;
+    color: $text-secondary;
+    margin-bottom: 10px;
+}
+
+.promptsGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.promptBtn {
+    min-height: $touch-min-height;
+    padding: 12px 16px;
+    background: $surface-pale;
+    border: 1px solid $border;
+    border-radius: $border-radius-sm;
+    color: $text-secondary;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+    text-align: left;
+
+    &:hover {
+        background: rgba($accent, 0.08);
+        border-color: $accent;
+        color: $text-primary;
+    }
+}
+
+// Messages
+.chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 0;
+}
+
+.chatMsg {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+
+    &.user {
+        flex-direction: row-reverse;
+    }
+}
+
+.msgBubble {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: $border-radius-md;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.user .msgBubble {
+    background: $accent;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.assistant .msgBubble {
+    background: $surface-pale;
+    border: 1px solid $border;
+    color: $text-primary;
+    border-bottom-left-radius: 4px;
+}
+
+.msgContent {
+    white-space: pre-wrap;
+}
+
+// Typing animation
+.msgContent.typing {
+    display: flex;
+    gap: 5px;
+    padding: 4px 0;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    background: $text-secondary;
+    border-radius: 50%;
+    animation: pulse 1.4s infinite ease-in-out;
+
+    &:nth-child(1) { animation-delay: 0s; }
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+}
+
+@keyframes pulse {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+// Generated Code Box
+.generatedCodeBox {
+    margin-top: 16px;
+    background: $surface-pale;
+    border: 1px solid $success;
+    border-radius: $border-radius-sm;
+    overflow: hidden;
+
+    .codeHeader {
+        padding: 10px 14px;
+        background: rgba($success, 0.12);
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: $success;
+        border-bottom: 1px solid rgba($success, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    pre {
+        padding: 12px 14px;
+        font-size: 0.7rem;
+        font-family: $font-mono;
+        color: $text-primary;
+        max-height: 150px;
+        overflow: auto;
+        margin: 0;
+        white-space: pre-wrap;
+        line-height: 1.5;
+    }
+
+    .btnUse {
+        width: 100%;
+        min-height: $touch-min-height;
+        padding: 14px 18px;
+        background: $success;
+        color: white;
+        border: none;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all $transition-fast;
+
+        &:hover {
+            filter: brightness(1.08);
+        }
+    }
+}
+
+.codeTag {
+    font-size: 0.65rem;
+    background: $success;
+    color: white;
+    padding: 3px 10px;
+    border-radius: $border-radius-pill;
+    font-weight: 500;
+}
+
+// Input Area
+.inputArea {
+    display: flex;
+    gap: 10px;
+    padding: 20px 24px;
+    border-top: 1px solid $border;
+
+    input {
+        flex: 1;
+        min-height: $touch-min-height;
+        padding: 14px 18px;
+        @include input-base;
+        font-size: 0.9rem;
+
+        &::placeholder {
+            color: $text-secondary;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+        }
+    }
+
+    .sendBtn {
+        @include button-primary;
+        padding: 14px 24px;
+    }
+}
+
+// ===== 響應式設計 =====
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+    .modalContent {
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .modalHeader {
+        padding: 16px 18px;
+    }
+
+    .chatArea {
+        padding: 16px 18px;
+    }
+
+    .inputArea {
+        padding: 16px 18px;
+        flex-direction: column;
+
+        .sendBtn {
+            width: 100%;
+            text-align: center;
+        }
+    }
+
+    .promptsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .msgBubble {
+        max-width: 100%;
+        font-size: 0.8rem;
+    }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+    .modalHeader {
+        padding: 12px 14px;
+    }
+
+    .chatArea {
+        padding: 12px 14px;
+        min-height: 260px;
+    }
+
+    .inputArea {
+        padding: 12px 14px;
+        gap: 8px;
+    }
+
+    .promptBtn {
+        padding: 10px 12px;
+        font-size: 0.78rem;
+    }
+
+    .msgBubble {
+        padding: 10px 12px;
+    }
+}

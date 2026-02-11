@@ -1,9 +1,21 @@
 import * as Blockly from 'blockly';
 
-export function astToBlockly(ast, workspace) {
-    const name = ast.formula_name || ast.score_name || 'Result';
+import type { AST, Condition } from '@/types';
 
-    console.log('AST received:', ast);
+type BlocklyWorkspace = Blockly.WorkspaceSvg;
+type BlocklyBlock = Blockly.BlockSvg;
+type VarModel = Blockly.IVariableModel<Blockly.IVariableState>;
+type VarMap = { [key: string]: VarModel };
+
+// 設置積木樣式的輔助函數
+function setBlockStyle(block: BlocklyBlock, styleName: string): void {
+    if (block && block.setStyle) {
+        block.setStyle(styleName);
+    }
+}
+
+export function astToBlockly(ast: AST, workspace: BlocklyWorkspace): void {
+    const name = ast.formula_name || ast.score_name || 'Result';
 
     // Create result variable
     let resultVar = workspace.getVariable(name);
@@ -13,7 +25,7 @@ export function astToBlockly(ast, workspace) {
     const resultVarId = resultVar.getId();
 
     // Create input variables FIRST - store both name and model
-    const varMap = {}; // name -> varModel
+    const varMap: VarMap = {};
     if (ast.variables) {
         for (const [varName, varType] of Object.entries(ast.variables)) {
             let varModel = workspace.getVariable(varName);
@@ -21,7 +33,6 @@ export function astToBlockly(ast, workspace) {
                 varModel = workspace.createVariable(varName, varType === 'int' ? 'Number' : 'Boolean');
             }
             varMap[varName] = varModel;
-            console.log('Created variable:', varName, 'with id:', varModel.getId());
         }
     }
 
@@ -33,13 +44,8 @@ export function astToBlockly(ast, workspace) {
                 varModel = workspace.createVariable(formulaName, 'Number');
             }
             varMap[formulaName] = varModel;
-            console.log('Created formula variable:', formulaName, 'with id:', varModel.getId());
         }
     }
-
-    console.log('Variable map:', Object.keys(varMap));
-    console.log('Formula:', ast.formula);
-    console.log('Formulas:', ast.formulas);
 
     // Check if has formulas to compute (score_with_formula type)
     if (ast.formulas && ast.rules) {
@@ -55,14 +61,23 @@ export function astToBlockly(ast, workspace) {
     workspace.render();
 }
 
-function createFormulaBlocks(ast, workspace, resultVarId, varMap) {
+function createFormulaBlocks(
+    ast: AST,
+    workspace: BlocklyWorkspace,
+    resultVarId: string,
+    varMap: VarMap
+): void {
     const setBlock = workspace.newBlock('variables_set');
+    setBlockStyle(setBlock, 'variable_blocks');
     setBlock.setFieldValue(resultVarId, 'VAR');
 
-    const formulaBlock = parseFormula(ast.formula, workspace, varMap);
+    const formulaBlock = parseFormula(ast.formula || '', workspace, varMap);
 
     if (formulaBlock) {
-        setBlock.getInput('VALUE').connection.connect(formulaBlock.outputConnection);
+        const valueInput = setBlock.getInput('VALUE');
+        if (valueInput && valueInput.connection && formulaBlock.outputConnection) {
+            valueInput.connection.connect(formulaBlock.outputConnection);
+        }
     }
 
     setBlock.initSvg();
@@ -70,12 +85,15 @@ function createFormulaBlocks(ast, workspace, resultVarId, varMap) {
 }
 
 // Parse formula using varMap directly
-function parseFormula(formula, workspace, varMap) {
+function parseFormula(
+    formula: string | null | undefined,
+    workspace: BlocklyWorkspace,
+    varMap: VarMap
+): BlocklyBlock | null {
     // Handle undefined or null formula
     if (formula == null) return createNumber(workspace, 0);
 
     formula = String(formula).trim();
-    console.log('Parsing:', formula);
 
     if (!formula) return createNumber(workspace, 0);
 
@@ -87,30 +105,38 @@ function parseFormula(formula, workspace, varMap) {
         const condition = ifElseMatch[2].trim();
         const elseValue = ifElseMatch[3].trim();
 
-        console.log('Found if-else:', { thenValue, condition, elseValue });
-
         // Create ternary block (if-then-else expression)
         const ternaryBlock = workspace.newBlock('logic_ternary');
+        setBlockStyle(ternaryBlock, 'logic_blocks');
 
         // Parse condition (e.g., "is_female" or "age > 50")
         const conditionBlock = parseCondition(condition, workspace, varMap);
         if (conditionBlock) {
             conditionBlock.initSvg();
-            ternaryBlock.getInput('IF').connection.connect(conditionBlock.outputConnection);
+            const ifInput = ternaryBlock.getInput('IF');
+            if (ifInput && ifInput.connection && conditionBlock.outputConnection) {
+                ifInput.connection.connect(conditionBlock.outputConnection);
+            }
         }
 
         // Parse then value
         const thenBlock = parseFormula(thenValue, workspace, varMap);
         if (thenBlock) {
             thenBlock.initSvg();
-            ternaryBlock.getInput('THEN').connection.connect(thenBlock.outputConnection);
+            const thenInput = ternaryBlock.getInput('THEN');
+            if (thenInput && thenInput.connection && thenBlock.outputConnection) {
+                thenInput.connection.connect(thenBlock.outputConnection);
+            }
         }
 
         // Parse else value
         const elseBlock = parseFormula(elseValue, workspace, varMap);
         if (elseBlock) {
             elseBlock.initSvg();
-            ternaryBlock.getInput('ELSE').connection.connect(elseBlock.outputConnection);
+            const elseInput = ternaryBlock.getInput('ELSE');
+            if (elseInput && elseInput.connection && elseBlock.outputConnection) {
+                elseInput.connection.connect(elseBlock.outputConnection);
+            }
         }
 
         ternaryBlock.initSvg();
@@ -130,7 +156,8 @@ function parseFormula(formula, workspace, varMap) {
         const right = formula.substring(mainOp.pos + mainOp.op.length).trim();
 
         const opBlock = workspace.newBlock('math_arithmetic');
-        const opMap = { '+': 'ADD', '-': 'MINUS', '*': 'MULTIPLY', '/': 'DIVIDE', '**': 'POWER' };
+        setBlockStyle(opBlock, 'math_blocks');
+        const opMap: { [key: string]: string } = { '+': 'ADD', '-': 'MINUS', '*': 'MULTIPLY', '/': 'DIVIDE', '**': 'POWER' };
         opBlock.setFieldValue(opMap[mainOp.op] || 'ADD', 'OP');
 
         const leftBlock = parseFormula(left, workspace, varMap);
@@ -138,11 +165,17 @@ function parseFormula(formula, workspace, varMap) {
 
         if (leftBlock) {
             leftBlock.initSvg();
-            opBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+            const aInput = opBlock.getInput('A');
+            if (aInput && aInput.connection && leftBlock.outputConnection) {
+                aInput.connection.connect(leftBlock.outputConnection);
+            }
         }
         if (rightBlock) {
             rightBlock.initSvg();
-            opBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+            const bInput = opBlock.getInput('B');
+            if (bInput && bInput.connection && rightBlock.outputConnection) {
+                bInput.connection.connect(rightBlock.outputConnection);
+            }
         }
 
         opBlock.initSvg();
@@ -158,31 +191,35 @@ function parseFormula(formula, workspace, varMap) {
     // Check if it's a boolean (with null check)
     if (formula && (formula.toLowerCase() === 'true' || formula.toLowerCase() === 'false')) {
         const boolBlock = workspace.newBlock('logic_boolean');
+        setBlockStyle(boolBlock, 'logic_blocks');
         boolBlock.setFieldValue(formula.toLowerCase() === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
         boolBlock.initSvg();
         return boolBlock;
     }
 
     // Check if it's a variable using the varMap directly
-    console.log('Checking variable:', formula, 'in varMap:', Object.keys(varMap));
     if (varMap[formula]) {
-        console.log('Found variable in varMap:', formula);
         const varModel = varMap[formula];
         const block = workspace.newBlock('variables_get');
+        setBlockStyle(block, 'variable_blocks');
         block.setFieldValue(varModel.getId(), 'VAR');
         block.initSvg();
         return block;
     }
 
-    console.log('Variable not found, fallback to 0:', formula);
     return createNumber(workspace, 0);
 }
 
 // Parse condition for if...else (e.g., "is_female" or "age > 50")
-function parseCondition(condition, workspace, varMap) {
+function parseCondition(
+    condition: string | null | undefined,
+    workspace: BlocklyWorkspace,
+    varMap: VarMap
+): BlocklyBlock | null {
     // Handle undefined or null condition
     if (condition == null) {
         const trueBlock = workspace.newBlock('logic_boolean');
+        setBlockStyle(trueBlock, 'logic_blocks');
         trueBlock.setFieldValue('TRUE', 'BOOL');
         trueBlock.initSvg();
         return trueBlock;
@@ -197,19 +234,26 @@ function parseCondition(condition, workspace, varMap) {
         const right = compMatch[3].trim();
 
         const compareBlock = workspace.newBlock('logic_compare');
-        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+        setBlockStyle(compareBlock, 'logic_blocks');
+        const opMap: { [key: string]: string } = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
         compareBlock.setFieldValue(opMap[op] || 'EQ', 'OP');
 
         const leftBlock = parseFormula(left, workspace, varMap);
         if (leftBlock) {
             leftBlock.initSvg();
-            compareBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+            const aInput = compareBlock.getInput('A');
+            if (aInput && aInput.connection && leftBlock.outputConnection) {
+                aInput.connection.connect(leftBlock.outputConnection);
+            }
         }
 
         const rightBlock = parseFormula(right, workspace, varMap);
         if (rightBlock) {
             rightBlock.initSvg();
-            compareBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+            const bInput = compareBlock.getInput('B');
+            if (bInput && bInput.connection && rightBlock.outputConnection) {
+                bInput.connection.connect(rightBlock.outputConnection);
+            }
         }
 
         compareBlock.initSvg();
@@ -220,6 +264,7 @@ function parseCondition(condition, workspace, varMap) {
     if (varMap[condition]) {
         const varModel = varMap[condition];
         const block = workspace.newBlock('variables_get');
+        setBlockStyle(block, 'variable_blocks');
         block.setFieldValue(varModel.getId(), 'VAR');
         block.initSvg();
         return block;
@@ -227,12 +272,13 @@ function parseCondition(condition, workspace, varMap) {
 
     // Fallback: true
     const trueBlock = workspace.newBlock('logic_boolean');
+    setBlockStyle(trueBlock, 'logic_blocks');
     trueBlock.setFieldValue('TRUE', 'BOOL');
     trueBlock.initSvg();
     return trueBlock;
 }
 
-function isWrapped(formula) {
+function isWrapped(formula: string): boolean {
     let depth = 0;
     for (let i = 0; i < formula.length; i++) {
         if (formula[i] === '(') depth++;
@@ -242,7 +288,7 @@ function isWrapped(formula) {
     return true;
 }
 
-function findMainOperator(formula) {
+function findMainOperator(formula: string): { op: string; pos: number } | null {
     const operators = [['+', '-'], ['*', '/'], ['**']];
 
     for (const ops of operators) {
@@ -267,20 +313,27 @@ function findMainOperator(formula) {
     return null;
 }
 
-function createNumber(workspace, num) {
+function createNumber(workspace: BlocklyWorkspace, num: number): BlocklyBlock {
     const block = workspace.newBlock('math_number');
+    setBlockStyle(block, 'math_blocks');
     block.setFieldValue(num, 'NUM');
     block.initSvg();
     return block;
 }
 
 // Create condition block for either simple or compound conditions
-function createConditionBlock(condition, workspace, varMap, scoreVarId) {
+function createConditionBlock(
+    condition: Condition | null | undefined,
+    workspace: BlocklyWorkspace,
+    varMap: VarMap,
+    scoreVarId: string
+): BlocklyBlock | null {
     if (!condition) return null;
 
     // Handle compound conditions (and/or)
     if (condition.compound) {
         const logicBlock = workspace.newBlock('logic_operation');
+        setBlockStyle(logicBlock, 'logic_blocks');
         logicBlock.setFieldValue(condition.compound.toUpperCase(), 'OP'); // 'AND' or 'OR'
 
         const subConditions = condition.conditions || [];
@@ -288,7 +341,10 @@ function createConditionBlock(condition, workspace, varMap, scoreVarId) {
             const leftBlock = createConditionBlock(subConditions[0], workspace, varMap, scoreVarId);
             if (leftBlock) {
                 leftBlock.initSvg();
-                logicBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+                const aInput = logicBlock.getInput('A');
+                if (aInput && aInput.connection && leftBlock.outputConnection) {
+                    aInput.connection.connect(leftBlock.outputConnection);
+                }
             }
         }
         if (subConditions.length >= 2) {
@@ -296,7 +352,10 @@ function createConditionBlock(condition, workspace, varMap, scoreVarId) {
             const rightBlock = createConditionBlock(subConditions[1], workspace, varMap, scoreVarId);
             if (rightBlock) {
                 rightBlock.initSvg();
-                logicBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+                const bInput = logicBlock.getInput('B');
+                if (bInput && bInput.connection && rightBlock.outputConnection) {
+                    bInput.connection.connect(rightBlock.outputConnection);
+                }
             }
         }
 
@@ -308,7 +367,8 @@ function createConditionBlock(condition, workspace, varMap, scoreVarId) {
     if (!condition.left || !condition.op || condition.left === 'unknown') return null;
 
     const condBlock = workspace.newBlock('logic_compare');
-    const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+    setBlockStyle(condBlock, 'logic_blocks');
+    const opMap: { [key: string]: string } = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
     condBlock.setFieldValue(opMap[condition.op] || 'EQ', 'OP');
 
     // Left side - variable
@@ -320,98 +380,147 @@ function createConditionBlock(condition, workspace, varMap, scoreVarId) {
     }
 
     const leftBlock = workspace.newBlock('variables_get');
+    setBlockStyle(leftBlock, 'variable_blocks');
     leftBlock.setFieldValue(leftVarModel.getId(), 'VAR');
     leftBlock.initSvg();
-    condBlock.getInput('A').connection.connect(leftBlock.outputConnection);
+    const aInput = condBlock.getInput('A');
+    if (aInput && aInput.connection && leftBlock.outputConnection) {
+        aInput.connection.connect(leftBlock.outputConnection);
+    }
 
     // Right side - value
-    let rightBlock;
+    let rightBlock: BlocklyBlock;
     const rightVal = condition.right;
     if (typeof rightVal === 'number') {
         rightBlock = workspace.newBlock('math_number');
+        setBlockStyle(rightBlock, 'math_blocks');
         rightBlock.setFieldValue(rightVal, 'NUM');
     } else if (typeof rightVal === 'boolean') {
         rightBlock = workspace.newBlock('logic_boolean');
+        setBlockStyle(rightBlock, 'logic_blocks');
         rightBlock.setFieldValue(rightVal ? 'TRUE' : 'FALSE', 'BOOL');
     } else if (rightVal == null) {
         rightBlock = workspace.newBlock('math_number');
+        setBlockStyle(rightBlock, 'math_blocks');
         rightBlock.setFieldValue(0, 'NUM');
     } else {
         const strVal = String(rightVal).toLowerCase();
         if (strVal === 'true' || strVal === 'false') {
             rightBlock = workspace.newBlock('logic_boolean');
+            setBlockStyle(rightBlock, 'logic_blocks');
             rightBlock.setFieldValue(strVal === 'true' ? 'TRUE' : 'FALSE', 'BOOL');
         } else {
             rightBlock = workspace.newBlock('math_number');
+            setBlockStyle(rightBlock, 'math_blocks');
             rightBlock.setFieldValue(parseFloat(rightVal) || 0, 'NUM');
         }
     }
     rightBlock.initSvg();
-    condBlock.getInput('B').connection.connect(rightBlock.outputConnection);
+    const bInput = condBlock.getInput('B');
+    if (bInput && bInput.connection && rightBlock.outputConnection) {
+        bInput.connection.connect(rightBlock.outputConnection);
+    }
 
     return condBlock;
 }
 
-function createScoreBlocks(ast, workspace, scoreVarId, varMap) {
+function createScoreBlocks(
+    ast: AST,
+    workspace: BlocklyWorkspace,
+    scoreVarId: string,
+    varMap: VarMap
+): void {
     const initBlock = workspace.newBlock('variables_set');
+    setBlockStyle(initBlock, 'variable_blocks');
     initBlock.setFieldValue(scoreVarId, 'VAR');
 
     const zeroBlock = workspace.newBlock('math_number');
+    setBlockStyle(zeroBlock, 'math_blocks');
     zeroBlock.setFieldValue(0, 'NUM');
 
-    initBlock.getInput('VALUE').connection.connect(zeroBlock.outputConnection);
+    const valueInput = initBlock.getInput('VALUE');
+    if (valueInput && valueInput.connection && zeroBlock.outputConnection) {
+        valueInput.connection.connect(zeroBlock.outputConnection);
+    }
     initBlock.initSvg();
     zeroBlock.initSvg();
     initBlock.moveBy(50, 50);
 
-    let prevBlock = initBlock;
+    let prevBlock: BlocklyBlock = initBlock;
 
-    ast.rules.forEach(rule => {
+    (ast.rules || []).forEach(rule => {
         // Skip rules without valid condition
         if (!rule || !rule.condition) return;
 
         const ifBlock = workspace.newBlock('controls_if');
+        setBlockStyle(ifBlock, 'control_blocks');
 
         // Handle compound or simple conditions
         const condBlock = createConditionBlock(rule.condition, workspace, varMap, scoreVarId);
         if (!condBlock) return;
 
         condBlock.initSvg();
-        ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
+        const if0Input = ifBlock.getInput('IF0');
+        if (if0Input && if0Input.connection && condBlock.outputConnection) {
+            if0Input.connection.connect(condBlock.outputConnection);
+        }
 
         const setScoreBlock = workspace.newBlock('variables_set');
+        setBlockStyle(setScoreBlock, 'variable_blocks');
         setScoreBlock.setFieldValue(scoreVarId, 'VAR');
 
         const addBlock = workspace.newBlock('math_arithmetic');
+        setBlockStyle(addBlock, 'math_blocks');
         addBlock.setFieldValue('ADD', 'OP');
 
         const currentScoreBlock = workspace.newBlock('variables_get');
+        setBlockStyle(currentScoreBlock, 'variable_blocks');
         currentScoreBlock.setFieldValue(scoreVarId, 'VAR');
         currentScoreBlock.initSvg();
 
         const valBlock = workspace.newBlock('math_number');
+        setBlockStyle(valBlock, 'math_blocks');
         valBlock.setFieldValue(rule.action.value, 'NUM');
         valBlock.initSvg();
 
-        addBlock.getInput('A').connection.connect(currentScoreBlock.outputConnection);
-        addBlock.getInput('B').connection.connect(valBlock.outputConnection);
+        const addAInput = addBlock.getInput('A');
+        if (addAInput && addAInput.connection && currentScoreBlock.outputConnection) {
+            addAInput.connection.connect(currentScoreBlock.outputConnection);
+        }
+        const addBInput = addBlock.getInput('B');
+        if (addBInput && addBInput.connection && valBlock.outputConnection) {
+            addBInput.connection.connect(valBlock.outputConnection);
+        }
         addBlock.initSvg();
 
-        setScoreBlock.getInput('VALUE').connection.connect(addBlock.outputConnection);
+        const setValueInput = setScoreBlock.getInput('VALUE');
+        if (setValueInput && setValueInput.connection && addBlock.outputConnection) {
+            setValueInput.connection.connect(addBlock.outputConnection);
+        }
         setScoreBlock.initSvg();
 
-        ifBlock.getInput('DO0').connection.connect(setScoreBlock.previousConnection);
+        const do0Input = ifBlock.getInput('DO0');
+        if (do0Input && do0Input.connection && setScoreBlock.previousConnection) {
+            do0Input.connection.connect(setScoreBlock.previousConnection);
+        }
         ifBlock.initSvg();
 
-        prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        if (prevBlock.nextConnection && ifBlock.previousConnection) {
+            prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        }
         prevBlock = ifBlock;
     });
 }
 
 // New function: Creates formula blocks followed by scoring rules
-function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
+function createFormulaWithScoreBlocks(
+    ast: AST,
+    workspace: BlocklyWorkspace,
+    scoreVarId: string,
+    varMap: VarMap
+): void {
     let yOffset = 50;
-    let prevBlock = null;
+    let prevBlock: BlocklyBlock | null = null;
 
     // Step 1: Create formula assignment blocks (e.g., set BMI = weight / height^2)
     for (const [formulaName, formulaExpr] of Object.entries(ast.formulas || {})) {
@@ -422,18 +531,22 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
         if (!formulaVarModel) continue;
 
         const setBlock = workspace.newBlock('variables_set');
+        setBlockStyle(setBlock, 'variable_blocks');
         setBlock.setFieldValue(formulaVarModel.getId(), 'VAR');
 
         const formulaBlock = parseFormula(formulaExpr, workspace, varMap);
         if (formulaBlock) {
-            setBlock.getInput('VALUE').connection.connect(formulaBlock.outputConnection);
+            const valueInput = setBlock.getInput('VALUE');
+            if (valueInput && valueInput.connection && formulaBlock.outputConnection) {
+                valueInput.connection.connect(formulaBlock.outputConnection);
+            }
         }
 
         setBlock.initSvg();
         setBlock.moveBy(50, yOffset);
         yOffset += 60;
 
-        if (prevBlock) {
+        if (prevBlock && prevBlock.nextConnection && setBlock.previousConnection) {
             prevBlock.nextConnection.connect(setBlock.previousConnection);
         }
         prevBlock = setBlock;
@@ -441,16 +554,21 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
 
     // Step 2: Initialize score = 0
     const initBlock = workspace.newBlock('variables_set');
+    setBlockStyle(initBlock, 'variable_blocks');
     initBlock.setFieldValue(scoreVarId, 'VAR');
 
     const zeroBlock = workspace.newBlock('math_number');
+    setBlockStyle(zeroBlock, 'math_blocks');
     zeroBlock.setFieldValue(0, 'NUM');
 
-    initBlock.getInput('VALUE').connection.connect(zeroBlock.outputConnection);
+    const initValueInput = initBlock.getInput('VALUE');
+    if (initValueInput && initValueInput.connection && zeroBlock.outputConnection) {
+        initValueInput.connection.connect(zeroBlock.outputConnection);
+    }
     initBlock.initSvg();
     zeroBlock.initSvg();
 
-    if (prevBlock) {
+    if (prevBlock && prevBlock.nextConnection && initBlock.previousConnection) {
         prevBlock.nextConnection.connect(initBlock.previousConnection);
     } else {
         initBlock.moveBy(50, yOffset);
@@ -463,40 +581,62 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
         if (!rule || !rule.condition) return;
 
         const ifBlock = workspace.newBlock('controls_if');
+        setBlockStyle(ifBlock, 'control_blocks');
 
         // Use createConditionBlock to handle both simple and compound conditions
         const condBlock = createConditionBlock(rule.condition, workspace, varMap, scoreVarId);
         if (!condBlock) return;
 
         condBlock.initSvg();
-        ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
+        const if0Input = ifBlock.getInput('IF0');
+        if (if0Input && if0Input.connection && condBlock.outputConnection) {
+            if0Input.connection.connect(condBlock.outputConnection);
+        }
 
         // Action: score = score + value
         const setScoreBlock = workspace.newBlock('variables_set');
+        setBlockStyle(setScoreBlock, 'variable_blocks');
         setScoreBlock.setFieldValue(scoreVarId, 'VAR');
 
         const addBlock = workspace.newBlock('math_arithmetic');
+        setBlockStyle(addBlock, 'math_blocks');
         addBlock.setFieldValue('ADD', 'OP');
 
         const currentScoreBlock = workspace.newBlock('variables_get');
+        setBlockStyle(currentScoreBlock, 'variable_blocks');
         currentScoreBlock.setFieldValue(scoreVarId, 'VAR');
         currentScoreBlock.initSvg();
 
         const valBlock = workspace.newBlock('math_number');
+        setBlockStyle(valBlock, 'math_blocks');
         valBlock.setFieldValue(rule.action.value, 'NUM');
         valBlock.initSvg();
 
-        addBlock.getInput('A').connection.connect(currentScoreBlock.outputConnection);
-        addBlock.getInput('B').connection.connect(valBlock.outputConnection);
+        const addAInput = addBlock.getInput('A');
+        if (addAInput && addAInput.connection && currentScoreBlock.outputConnection) {
+            addAInput.connection.connect(currentScoreBlock.outputConnection);
+        }
+        const addBInput = addBlock.getInput('B');
+        if (addBInput && addBInput.connection && valBlock.outputConnection) {
+            addBInput.connection.connect(valBlock.outputConnection);
+        }
         addBlock.initSvg();
 
-        setScoreBlock.getInput('VALUE').connection.connect(addBlock.outputConnection);
+        const setValueInput = setScoreBlock.getInput('VALUE');
+        if (setValueInput && setValueInput.connection && addBlock.outputConnection) {
+            setValueInput.connection.connect(addBlock.outputConnection);
+        }
         setScoreBlock.initSvg();
 
-        ifBlock.getInput('DO0').connection.connect(setScoreBlock.previousConnection);
+        const do0Input = ifBlock.getInput('DO0');
+        if (do0Input && do0Input.connection && setScoreBlock.previousConnection) {
+            do0Input.connection.connect(setScoreBlock.previousConnection);
+        }
         ifBlock.initSvg();
 
-        prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        if (prevBlock && prevBlock.nextConnection && ifBlock.previousConnection) {
+            prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        }
         prevBlock = ifBlock;
     });
 
@@ -512,9 +652,9 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
     const riskLevels = ast.risk_levels && ast.risk_levels.length > 0
         ? ast.risk_levels
         : [
-            { condition: { op: '>=', left: 'score', right: 3 }, text: '⚠️ High Risk' },
-            { condition: { op: '==', left: 'score', right: 2 }, text: '⚡ Medium Risk' },
-            { condition: { op: '<', left: 'score', right: 2 }, text: '✓ Low Risk' }
+            { condition: { op: '>=', left: 'score', right: 3 } as Condition, text: '⚠️ High Risk' },
+            { condition: { op: '==', left: 'score', right: 2 } as Condition, text: '⚡ Medium Risk' },
+            { condition: { op: '<', left: 'score', right: 2 } as Condition, text: '✓ Low Risk' }
         ];
 
     // Generate blocks for each risk level
@@ -522,36 +662,59 @@ function createFormulaWithScoreBlocks(ast, workspace, scoreVarId, varMap) {
         if (!riskLevel.condition || !riskLevel.text) return;
 
         const ifBlock = workspace.newBlock('controls_if');
+        setBlockStyle(ifBlock, 'control_blocks');
 
         const condBlock = workspace.newBlock('logic_compare');
-        const opMap = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
+        setBlockStyle(condBlock, 'logic_blocks');
+        const opMap: { [key: string]: string } = { '>=': 'GTE', '<=': 'LTE', '==': 'EQ', '>': 'GT', '<': 'LT' };
         condBlock.setFieldValue(opMap[riskLevel.condition.op] || 'EQ', 'OP');
 
         const scoreGetBlock = workspace.newBlock('variables_get');
+        setBlockStyle(scoreGetBlock, 'variable_blocks');
         scoreGetBlock.setFieldValue(scoreVarId, 'VAR');
         scoreGetBlock.initSvg();
-        condBlock.getInput('A').connection.connect(scoreGetBlock.outputConnection);
+        const condAInput = condBlock.getInput('A');
+        if (condAInput && condAInput.connection && scoreGetBlock.outputConnection) {
+            condAInput.connection.connect(scoreGetBlock.outputConnection);
+        }
 
         const numBlock = workspace.newBlock('math_number');
-        numBlock.setFieldValue(riskLevel.condition.right, 'NUM');
+        setBlockStyle(numBlock, 'math_blocks');
+        numBlock.setFieldValue(riskLevel.condition.right as number, 'NUM');
         numBlock.initSvg();
-        condBlock.getInput('B').connection.connect(numBlock.outputConnection);
+        const condBInput = condBlock.getInput('B');
+        if (condBInput && condBInput.connection && numBlock.outputConnection) {
+            condBInput.connection.connect(numBlock.outputConnection);
+        }
         condBlock.initSvg();
 
-        ifBlock.getInput('IF0').connection.connect(condBlock.outputConnection);
+        const if0Input = ifBlock.getInput('IF0');
+        if (if0Input && if0Input.connection && condBlock.outputConnection) {
+            if0Input.connection.connect(condBlock.outputConnection);
+        }
 
         const setBlock = workspace.newBlock('variables_set');
+        setBlockStyle(setBlock, 'variable_blocks');
         setBlock.setFieldValue(riskVarId, 'VAR');
         const textBlock = workspace.newBlock('text');
+        setBlockStyle(textBlock, 'text_blocks');
         textBlock.setFieldValue(riskLevel.text, 'TEXT');
         textBlock.initSvg();
-        setBlock.getInput('VALUE').connection.connect(textBlock.outputConnection);
+        const setValueInput = setBlock.getInput('VALUE');
+        if (setValueInput && setValueInput.connection && textBlock.outputConnection) {
+            setValueInput.connection.connect(textBlock.outputConnection);
+        }
         setBlock.initSvg();
 
-        ifBlock.getInput('DO0').connection.connect(setBlock.previousConnection);
+        const do0Input = ifBlock.getInput('DO0');
+        if (do0Input && do0Input.connection && setBlock.previousConnection) {
+            do0Input.connection.connect(setBlock.previousConnection);
+        }
         ifBlock.initSvg();
 
-        prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        if (prevBlock && prevBlock.nextConnection && ifBlock.previousConnection) {
+            prevBlock.nextConnection.connect(ifBlock.previousConnection);
+        }
         prevBlock = ifBlock;
     });
 }

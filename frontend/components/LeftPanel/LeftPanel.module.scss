@@ -1,0 +1,563 @@
+@import '../../styles/variables.scss';
+
+.leftPanel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    bottom: 20px;
+    width: 340px;
+    z-index: 50;
+}
+
+/* 在 build 模式三欄 grid 內使用時，不脫離格子、不蓋住中間 viewport */
+.leftPanelInGrid {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: 100%;
+    z-index: auto;
+}
+
+// ===== 響應式設計 =====
+
+// 平板 (768px - 1024px)
+@media (max-width: 1024px) {
+    .leftPanel {
+        width: 300px;
+        top: 15px;
+        left: 15px;
+        bottom: 15px;
+    }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+    .leftPanel {
+        position: relative;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        padding-top: 110px; // 左側多留一點空間，避免與收合列太靠近
+    }
+}
+
+// 平板 (768px - 1024px)，與右側 panel 一致
+@media (max-width: 1024px) {
+    .chatContent,
+    .editorContent {
+        padding: 16px;
+        gap: 12px;
+    }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+    .sectionTitle {
+        font-size: 0.75rem;
+    }
+
+    .chatContent,
+    .editorContent {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+}
+
+// 小手機 (< 480px)，與 ResultPanel / PatientPanel .panelContent 一致
+@media (max-width: 480px) {
+    .sectionHeader {
+        padding: 12px 16px;
+    }
+
+    .sectionTitle {
+        font-size: 0.75rem;
+    }
+
+    .chatContent,
+    .editorContent {
+        padding: 10px 12px;
+        gap: 10px;
+    }
+
+    .codeEditor {
+        font-size: 0.65rem;
+    }
+
+    .msgBubble {
+        font-size: 0.7rem;
+        padding: 8px 12px;
+    }
+
+    .chatInputArea {
+        input {
+            font-size: 0.75rem;
+            padding: 8px 10px;
+        }
+
+        button {
+            padding: 8px 14px;
+            font-size: 0.7rem;
+        }
+    }
+}
+
+.panelGroup {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+// Resize Handle
+.resizeHandle {
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    z-index: 10;
+    transition: all $transition-fast;
+
+    &:hover {
+        .resizeHandleInner {
+            background: rgba($accent, 0.3);
+        }
+    }
+
+    &[data-resize-handle-active] {
+        .resizeHandleInner {
+            background: $accent;
+        }
+    }
+}
+
+.resizeHandleInner {
+    width: 60px;
+    height: 6px;
+    border-radius: 3px;
+    background: $border;
+    transition: all $transition-fast;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resizeDots {
+    font-size: 8px;
+    color: $text-secondary;
+    letter-spacing: -1px;
+}
+
+// Section Header（與 PatientPanel / ResultPanel .panelHeader 一致）
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px $panel-padding;
+    border-bottom: 1px solid $border;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background $transition-fast, color $transition-fast;
+
+    &:hover {
+        background: $surface-pale;
+        color: $text-primary;
+    }
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.sectionIcon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.sectionTitle {
+    @include label-style;
+    font-size: 0.8rem;
+    color: $text-primary;
+    flex-shrink: 0;
+}
+
+.collapsedInfo {
+    font-size: 0.7rem;
+    color: $text-secondary;
+    margin-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: normal;
+}
+
+.collapseIcon {
+    font-size: 0.6rem;
+    color: $text-secondary;
+    flex-shrink: 0;
+}
+
+// Chat Section（與右側 panel 同款容器）
+.chatSection {
+    @include glass-panel;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+// 內容區與 .panelContent 一致
+.chatContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: $panel-padding;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.quickPrompts {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+
+    button {
+        min-height: $touch-min-height;
+        padding: 10px 16px;
+        background: transparent;
+        border: 1px solid $border;
+        border-radius: $border-radius-pill;
+        color: $text-secondary;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: all $transition-fast;
+
+        &:hover {
+            background: rgba($accent, 0.08);
+            border-color: $accent;
+            color: $text-primary;
+        }
+    }
+}
+
+.chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 4px 4px 0;
+    min-height: 40px;
+}
+
+.chatMsg {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    flex-shrink: 0;
+
+    &.user {
+        flex-direction: row-reverse;
+    }
+}
+
+.msgBubble {
+    max-width: 90%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+.user .msgBubble {
+    background: $accent;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.assistant .msgBubble {
+    background: $surface-pale;
+    color: $text-primary;
+    border: 1px solid $border;
+    border-bottom-left-radius: 4px;
+}
+
+.msgContent {
+    white-space: pre-wrap;
+}
+
+.msgContent.typing {
+    display: flex;
+    gap: 5px;
+    padding: 2px 0;
+}
+
+.dot {
+    width: 5px;
+    height: 5px;
+    background: $text-secondary;
+    border-radius: 50%;
+    animation: pulse 1.4s infinite ease-in-out;
+
+    &:nth-child(1) { animation-delay: 0s; }
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+}
+
+@keyframes pulse {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+// Generated Code Box
+.generatedCodeBox {
+    margin-top: 10px;
+    background: $surface-pale;
+    border: 1px solid $success;
+    border-radius: $border-radius-sm;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    .codeHeader {
+        padding: 8px 12px;
+        background: rgba($success, 0.12);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: $success;
+        border-bottom: 1px solid rgba($success, 0.2);
+    }
+
+    pre {
+        padding: 10px 12px;
+        font-size: 0.65rem;
+        font-family: $font-mono;
+        color: $text-primary;
+        max-height: 100px;
+        overflow: auto;
+        margin: 0;
+        white-space: pre-wrap;
+        line-height: 1.4;
+    }
+
+    .btnUse {
+        width: 100%;
+        min-height: $touch-min-height;
+        padding: 12px 16px;
+        background: $success;
+        color: white;
+        border: none;
+        font-weight: 600;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all $transition-fast;
+
+        &:hover {
+            filter: brightness(1.08);
+        }
+    }
+}
+
+// Chat Input
+.chatInputArea {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-shrink: 0;
+
+    input {
+        flex: 1;
+        min-height: $touch-min-height;
+        padding: 12px 14px;
+        @include input-base;
+        font-size: 0.8rem;
+
+        &::placeholder {
+            color: $text-secondary;
+            opacity: 0.6;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+        }
+    }
+
+    button {
+        min-height: $touch-min-height;
+        padding: 12px 20px;
+        background: $accent;
+        color: white;
+        border: none;
+        border-radius: $border-radius-sm;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all $transition-fast;
+        flex-shrink: 0;
+
+        &:hover:not(:disabled) {
+            filter: brightness(1.08);
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+}
+
+// Editor Section（與右側 panel 同款容器）
+.editorSection {
+    @include glass-panel;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.editorContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: $panel-padding;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.codeEditor {
+    flex: 1;
+    min-height: 80px;
+    @include input-base;
+    padding: 12px 14px;
+    font-family: $font-mono;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    resize: none;
+    overflow-y: auto;
+
+    &::placeholder {
+        color: $text-secondary;
+        opacity: 0.6;
+    }
+}
+
+.btnPrimary {
+    @include button-primary;
+    margin-top: 12px;
+    flex-shrink: 0;
+}
+
+.formulaActions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+.btnSecondary {
+    flex: 1;
+    min-height: $touch-min-height;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px solid $border;
+    border-radius: $border-radius-sm;
+    color: $text-secondary;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+        background: $surface-pale;
+        border-color: $border-hover;
+        color: $text-primary;
+    }
+}
+
+.saveFormulaRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+.saveNameInput {
+    flex: 1;
+    min-height: $touch-min-height;
+    padding: 12px 14px;
+    @include input-base;
+    font-size: 0.78rem;
+    min-width: 0;
+
+    &::placeholder {
+        color: $text-secondary;
+    }
+}
+
+.btnSmall {
+    min-height: $touch-min-height;
+    padding: 12px 16px;
+    background: $accent;
+    color: white;
+    border: none;
+    border-radius: $border-radius-sm;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+    flex-shrink: 0;
+
+    &:hover {
+        filter: brightness(1.08);
+    }
+
+    &:last-of-type {
+        background: transparent;
+        border: 1px solid $border;
+        color: $text-secondary;
+
+        &:hover {
+            color: $text-primary;
+            border-color: $border-hover;
+        }
+    }
+}
+
+.saveFeedback {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: $success;
+    flex-shrink: 0;
+}
+
+.errorMsg {
+    margin-top: 10px;
+    background: rgba($error, 0.1);
+    border: 1px solid rgba($error, 0.3);
+    color: $error;
+    padding: 10px 12px;
+    border-radius: $border-radius-sm;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+    max-height: 80px;
+    overflow-y: auto;
+}

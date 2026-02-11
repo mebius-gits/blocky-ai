@@ -1,0 +1,490 @@
+@import './variables.scss';
+
+// ===== 主頁兩塊選擇 =====
+.homeView {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 24px 40px;
+  background: $bg-app;
+  background-image:
+    linear-gradient($border 1px, transparent 1px),
+    linear-gradient(90deg, $border 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.homeCards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  max-width: 640px;
+  width: 100%;
+}
+
+.homeCard {
+  @include glass-panel;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  min-height: $touch-min-height;
+  border: 1px solid $border;
+  cursor: pointer;
+  transition: all $transition-normal;
+  text-align: center;
+
+  &:hover {
+    border-color: $accent;
+    box-shadow: $shadow-panel;
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+.homeCardIcon {
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+}
+
+.homeCardTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 8px;
+}
+
+.homeCardDesc {
+  font-size: 0.85rem;
+  color: $text-secondary;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .homeCards {
+    grid-template-columns: 1fr;
+  }
+
+  .homeView {
+    padding: 90px 16px 24px;
+  }
+}
+
+// ===== 使用公式流程 =====
+.useFormulaView {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 80px 20px 24px;
+  overflow-y: auto;
+  background: $bg-app;
+}
+
+.useFormulaCard {
+  max-width: 520px;
+  margin: 0 auto;
+  @include glass-panel;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.useFormulaHeading {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0 0 8px 0;
+}
+
+.formulaSelectRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.useFormulaLabel {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: $text-secondary;
+}
+
+.formulaSelect {
+  min-height: $touch-min-height;
+  padding: 12px 14px;
+  @include input-base;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.useFormulaHint {
+  font-size: 0.85rem;
+  color: $text-secondary;
+  margin: 0;
+}
+
+.useFormulaError,
+.calcErrorBanner {
+  padding: 12px;
+  background: rgba($error, 0.1);
+  border: 1px solid rgba($error, 0.3);
+  color: $error;
+  border-radius: $border-radius-sm;
+  font-size: 0.8rem;
+}
+
+// 計算錯誤顯示在結果區上方，較易看見
+.calcErrorBanner {
+  margin-bottom: 12px;
+}
+
+.useFormulaLoading {
+  font-size: 0.85rem;
+  color: $text-secondary;
+}
+
+@media (max-width: 768px) {
+  .useFormulaView {
+    padding: 72px 16px 20px;
+  }
+
+  .useFormulaCard {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  .useFormulaHeading {
+    font-size: 1rem;
+  }
+
+  .formulaSelect {
+    font-size: 16px; // 防止 iOS 縮放
+  }
+}
+
+@media (max-width: 480px) {
+  .useFormulaView {
+    padding: 68px 12px 16px;
+  }
+
+  .useFormulaCard {
+    padding: 16px 12px;
+    max-width: 100%;
+  }
+
+  .useFormulaPatient,
+  .useFormulaResult {
+    padding-top: 16px;
+  }
+}
+
+.useFormulaPatient,
+.useFormulaResult {
+  border-top: 1px solid $border;
+  padding-top: 20px;
+}
+
+// 內嵌時取消子面板的邊框與陰影（子元件為單一 div 根節點）
+.useFormulaPatient > div,
+.useFormulaResult > div {
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+}
+
+// ===== Full Screen Wrapper =====
+.appWrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+
+    @media (max-width: 768px) {
+        overflow: visible;
+        height: 100vh;
+        height: 100dvh;
+    }
+}
+
+// ===== Build Mode: Three-Column Grid (Workbench) =====
+.buildGrid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 320px 1fr 340px;
+    gap: 16px;
+    padding: 72px 16px 16px 16px; // below header
+    background: $bg-app;
+    min-height: 0;
+}
+
+// ===== Blockly Viewport (Pane B)，與左/右 panel 同款容器 =====
+.blocklyViewport {
+    @include glass-panel;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.blocklyHeader {
+    @include label-style;
+    flex-shrink: 0;
+    padding: 14px $panel-padding;
+    border-bottom: 1px solid $border;
+    color: $text-primary;
+    transition: background $transition-fast, color $transition-fast;
+
+    &:hover {
+        background: $surface-pale;
+        color: $text-primary;
+    }
+}
+
+.blocklyCanvas {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04);
+
+    > div {
+        width: 100% !important;
+        height: 100% !important;
+    }
+}
+
+// ===== Left Panel Wrapper (Pane A) =====
+.leftPanelWrapper {
+    min-width: 0;
+    min-height: 0;
+    z-index: 10;
+}
+
+// ===== Right Side Panels Container (Pane C) =====
+.rightPanels {
+    min-width: 0;
+    min-height: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+}
+
+// ===== Mobile Toggle Buttons =====
+.mobileToggleLeft,
+.mobileToggleRight {
+    display: none;
+    position: fixed;
+    z-index: 200;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: $bg-panel;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: $shadow-panel;
+    color: $text-primary;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+        transform: scale(1.05);
+        background: $surface-pale;
+        color: $text-primary;
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+}
+
+.mobileToggleLeft {
+    top: 60px;
+    left: 10px;
+}
+
+.mobileToggleRight {
+    top: 60px;
+    right: 10px;
+}
+
+// ===== Mobile Overlay =====
+.mobileOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 140;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.panelGroup {
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+// Resize Handle
+.resizeHandle {
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    z-index: 10;
+    transition: background $transition-fast;
+    flex-shrink: 0;
+    contain: layout style paint;
+
+    &:hover {
+        .resizeHandleInner {
+            background: rgba($accent, 0.3);
+        }
+    }
+
+    &[data-resize-handle-active] {
+        .resizeHandleInner {
+            background: $accent;
+        }
+    }
+}
+
+.resizeHandleInner {
+    width: 60px;
+    height: 6px;
+    border-radius: 3px;
+    background: $border;
+    transition: background $transition-fast;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    will-change: background;
+}
+
+.resizeDots {
+    font-size: 8px;
+    color: $text-secondary;
+    letter-spacing: -1px;
+}
+
+// ===== 響應式設計 =====
+
+// 平板 (768px - 1024px)
+@media (max-width: 1024px) {
+    .buildGrid {
+        grid-template-columns: 280px 1fr 300px;
+        padding: 68px 12px 12px 12px;
+    }
+}
+
+// 手機 (< 768px): 單欄 + 左右滑出面板
+@media (max-width: 768px) {
+    .buildGrid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        padding: 56px 0 0 0;
+        gap: 0;
+    }
+
+    .leftPanelWrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        z-index: 150;
+        padding-top: 110px;
+        transform: translateY(-100%);
+        transition: transform 0.3s ease;
+        border-bottom-left-radius: $border-radius-lg;
+        border-bottom-right-radius: $border-radius-lg;
+        overflow: hidden;
+
+        &.open {
+            transform: translateY(0);
+        }
+    }
+
+    .blocklyViewport {
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0 8px 8px 8px;
+        min-height: 0;
+    }
+
+    .rightPanels {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        z-index: 150;
+        padding-top: 110px;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+        border-top-left-radius: $border-radius-lg;
+        border-top-right-radius: $border-radius-lg;
+        overflow: hidden;
+
+        &.open {
+            transform: translateY(0);
+        }
+    }
+
+    .mobileToggleLeft,
+    .mobileToggleRight {
+        display: flex;
+    }
+
+    .mobileOverlay {
+        display: block;
+    }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+    .mobileToggleLeft,
+    .mobileToggleRight {
+        min-width: $touch-min-height;
+        min-height: $touch-min-height;
+        font-size: 1rem;
+    }
+
+    .mobileToggleLeft {
+        top: 55px;
+        left: 8px;
+    }
+
+    .mobileToggleRight {
+        top: 55px;
+        right: 8px;
+    }
+}

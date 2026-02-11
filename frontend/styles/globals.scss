@@ -1,0 +1,165 @@
+@import './variables.scss';
+
+// ===============================================
+//   Clinical Workbench - Global Styles
+// ===============================================
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  overflow: hidden;
+  font-family: $font-main;
+  line-height: 1.5;
+  font-weight: 400;
+  color: $text-primary;
+  background-color: $bg-app;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: $accent;
+  text-decoration: inherit;
+
+  &:hover {
+    color: darken($accent, 8%);
+  }
+}
+
+button {
+  min-height: $touch-min-height;
+  border-radius: $border-radius-sm;
+  border: 1px solid $border;
+  padding: 12px 20px;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: $bg-panel;
+  color: $text-primary;
+  cursor: pointer;
+  transition: border-color $transition-fast, background $transition-fast, color $transition-fast;
+
+  &:hover {
+    border-color: $border-hover;
+    background: $surface-pale;
+    color: $text-primary;
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+input,
+select,
+textarea {
+  min-height: $touch-min-height;
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $surface-pale;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border-hover;
+  border-radius: 4px;
+
+  &:hover {
+    background: $text-secondary;
+  }
+}
+
+// 觸控設備優化
+@media (hover: none) and (pointer: coarse) {
+  button,
+  input,
+  select,
+  textarea {
+    min-height: $touch-min-height;
+  }
+
+  * {
+    -webkit-tap-highlight-color: rgba($accent, 0.15);
+  }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+  html,
+  body {
+    // 允許在移動設備上滾動
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    // 使用動態視窗高度
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  // 更細的滾動條
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  // 改善文字選擇
+  * {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  // 防止縮放（可選，根據需求調整）
+  input,
+  textarea,
+  select {
+    font-size: 16px; // 防止 iOS 自動縮放
+  }
+
+  button {
+    -webkit-tap-highlight-color: rgba($accent, 0.2);
+    touch-action: manipulation;
+  }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+
+  body {
+    font-size: 0.875rem;
+  }
+}
+
+// Blockly Zelos 下拉選單（變數、邏輯、數學等全部）文字改為 #18304E
+body .blocklyDropDownDiv .blocklyDropDownContent,
+body .blocklyDropDownContent .blocklyMenu,
+body .blocklyDropDownContent .blocklyMenuItem {
+  color: #18304E !important;
+}
+body .blocklyDropDownContent .blocklyMenuItem * {
+  color: inherit !important;
+}
+
+// Blockly Zelos 積木上「下拉欄位」一般檢視文字（SVG）改為 #18304E（權重需高於 Zelos 注入的 fill: #fff !important）
+body .blocklyDropdownText.blocklyDropdownText,
+.blocklyDropdownField .blocklyDropdownText {
+  fill: #18304E !important;
+}

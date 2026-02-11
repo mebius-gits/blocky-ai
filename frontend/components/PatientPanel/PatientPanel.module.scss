@@ -1,0 +1,395 @@
+@import '../../styles/variables.scss';
+
+.patientPanel {
+    @include glass-panel;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.panelHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px $panel-padding;
+    border-bottom: 1px solid $border;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background $transition-fast, color $transition-fast;
+
+    &:hover {
+        background: $surface-pale;
+        color: $text-primary;
+    }
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.panelIcon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.panelTitle {
+    @include label-style;
+    font-size: 0.8rem;
+    color: $text-primary;
+    flex-shrink: 0;
+}
+
+.collapsedInfo {
+    font-size: 0.7rem;
+    color: $text-secondary;
+    margin-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.collapseIcon {
+    font-size: 0.6rem;
+    color: $text-secondary;
+    flex-shrink: 0;
+}
+
+// Panel Content (with fixed button)
+.panelContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: $panel-padding;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.scrollableContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-right: 4px;
+    min-height: 0;
+    contain: layout style paint;
+    will-change: contents;
+}
+
+.fieldLabel {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 6px;
+    display: block;
+}
+
+// Search Section
+.searchSection {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.searchRow {
+    display: flex;
+    gap: 8px;
+}
+
+.searchInput {
+    flex: 1;
+    min-height: $touch-min-height;
+    padding: 10px 12px;
+    @include input-base;
+    font-size: 0.8rem;
+
+    &::placeholder {
+        color: $text-secondary;
+        opacity: 0.6;
+    }
+}
+
+.searchBtn {
+    min-height: $touch-min-height;
+    padding: 10px 16px;
+    background: $accent;
+    color: white;
+    border: none;
+    border-radius: $border-radius-sm;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all $transition-fast;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.08);
+    }
+}
+
+.searchError {
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: $error;
+}
+
+// Select Section
+.selectSection {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.patientSelect {
+    width: 100%;
+    min-height: $touch-min-height;
+    padding: 10px 12px;
+    @include input-base;
+    font-size: 0.8rem;
+    cursor: pointer;
+
+    option {
+        background: $bg-panel;
+        color: $text-primary;
+    }
+}
+
+// Patient Info
+.patientInfo {
+    background: rgba($accent, 0.08);
+    border: 1px solid rgba($accent, 0.2);
+    border-radius: $border-radius-sm;
+    padding: 12px;
+    flex-shrink: 0;
+}
+
+.patientName {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: $text-primary;
+    margin-bottom: 4px;
+}
+
+.patientDetails {
+    font-size: 0.7rem;
+    color: $text-secondary;
+}
+
+.divider {
+    height: 1px;
+    background: $border;
+    flex-shrink: 0;
+}
+
+// Variables Section
+.variablesSection {
+    display: flex;
+    flex-direction: column;
+    min-height: 40px;
+    flex-shrink: 0;
+}
+
+.variablesList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $text-secondary;
+    font-size: 0.75rem;
+    font-style: italic;
+    opacity: 0.6;
+    text-align: center;
+    padding: 20px;
+}
+
+.varRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: $surface-pale;
+    padding: 10px 12px;
+    border-radius: $border-radius-sm;
+    border: 1px solid $border;
+    flex-shrink: 0;
+
+    label {
+        font-size: 0.75rem;
+        color: $text-secondary;
+        font-weight: 500;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+        width: 80px;
+        min-height: $touch-min-height;
+        padding: 8px 10px;
+        background: $bg-panel;
+        border: 1px solid $border;
+        color: $text-primary;
+        border-radius: 6px;
+        text-align: right;
+        font-family: $font-mono;
+        font-size: 0.8rem;
+        transition: border-color $transition-fast;
+
+        &:focus {
+            outline: none;
+            border-color: $accent;
+        }
+    }
+}
+
+// Checkbox
+.checkboxInput,
+.varRow input[type="checkbox"] {
+    width: 44px;
+    height: 24px;
+    min-height: 24px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: $surface-pale;
+    border: 1px solid $border;
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        background: $text-secondary;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    &:checked {
+        background: $success;
+        border-color: $success;
+
+        &::before {
+            transform: translateX(20px);
+            background: $surface-white;
+        }
+    }
+}
+
+// Calculate Button
+.btnCalculate {
+    @include button-success;
+    width: 100%;
+    flex-shrink: 0;
+    margin-top: 0;
+}
+
+// ===== 響應式設計 =====
+
+// 平板 (768px - 1024px)
+@media (max-width: 1024px) {
+    .panelContent {
+        padding: 16px;
+        gap: 10px;
+    }
+}
+
+// 手機 (< 768px)
+@media (max-width: 768px) {
+    .panelTitle {
+        font-size: 0.75rem;
+    }
+
+    .panelContent {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+
+    .fieldLabel {
+        font-size: 0.65rem;
+    }
+
+    .searchInput,
+    .patientSelect {
+        font-size: 0.75rem;
+        padding: 8px 10px;
+    }
+
+    .searchBtn {
+        padding: 8px 14px;
+        font-size: 0.7rem;
+    }
+
+    .patientInfo {
+        padding: 10px;
+    }
+
+    .patientName {
+        font-size: 0.85rem;
+    }
+
+    .patientDetails {
+        font-size: 0.65rem;
+    }
+
+    .varRow {
+        padding: 8px 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+
+        label {
+            font-size: 0.7rem;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            text-align: left;
+        }
+    }
+
+    .btnCalculate {
+        padding: 10px 14px;
+        font-size: 0.7rem;
+    }
+}
+
+// 小手機 (< 480px)
+@media (max-width: 480px) {
+    .panelHeader {
+        padding: 12px 16px; // 與 LeftPanel.sectionHeader 在小手機上一致
+    }
+
+    .panelContent {
+        padding: 10px 12px;
+    }
+
+    .searchRow {
+        flex-direction: column;
+        gap: 6px;
+
+        .searchInput {
+            width: 100%;
+        }
+
+        .searchBtn {
+            width: 100%;
+        }
+    }
+}

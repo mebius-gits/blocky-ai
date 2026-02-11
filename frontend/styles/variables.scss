@@ -1,0 +1,134 @@
+// ===============================================
+//   Clinical Workbench - SCSS Variables
+// ===============================================
+
+// ----- Surface / Backgrounds -----
+$surface-white: #ffffff;
+$surface-pale: #f3f4f6;
+$bg-app: #f3f4f6;
+$bg-panel: #ffffff;
+$bg-input: #ffffff;
+
+// ----- Primary (Clinical) -----
+$primary-teal: #00796b;
+$primary-slate: #263238;
+$accent: #00796b;
+$accent-glow: rgba(0, 121, 107, 0.25);
+
+// ----- Borders -----
+$border: #e5e7eb;
+$border-hover: #d1d5db;
+
+// ----- Text -----
+$text-primary: #263238;
+$text-secondary: #6b7280;
+
+// ----- Semantic -----
+$success: #059669;
+$error: #dc2626;
+$warning: #b45309;
+
+// ----- Typography -----
+$font-main: 'Inter', 'Roboto', 'Segoe UI', system-ui, sans-serif;
+$font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+$label-uppercase: uppercase;
+$label-tracking: 0.05em;
+$label-size: 0.6875rem;
+
+// ----- Spacing -----
+$panel-padding: 20px;
+$panel-gap: 16px;
+$border-radius-sm: 8px;
+$border-radius-md: 12px;
+$border-radius-lg: 16px;
+$border-radius-pill: 50px;
+
+// ----- Touch targets -----
+$touch-min-height: 48px;
+
+// ----- Shadows (soft, diffuse) -----
+$shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+$shadow-panel: 0 2px 12px rgba(0, 0, 0, 0.08);
+$shadow-header: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+// ----- Transitions -----
+$transition-fast: 0.2s ease;
+$transition-normal: 0.3s ease;
+
+// ----- Legacy aliases (for gradual migration) -----
+$bg-dark: $bg-app;
+$text-primary-dark: #ffffff;
+$text-secondary-dark: rgba(255, 255, 255, 0.6);
+
+// ----- Mixins (Clinical Workbench) -----
+@mixin workbench-panel {
+  background: $bg-panel;
+  border: 1px solid $border;
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-panel;
+}
+
+@mixin glass-panel {
+  @include workbench-panel;
+}
+
+@mixin label-style {
+  font-size: $label-size;
+  font-weight: 600;
+  text-transform: $label-uppercase;
+  letter-spacing: $label-tracking;
+  color: $text-secondary;
+}
+
+@mixin button-primary {
+  min-height: $touch-min-height;
+  padding: 12px 20px;
+  border-radius: $border-radius-sm;
+  font-weight: 600;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none;
+  transition: all $transition-fast;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: $accent;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: $accent;
+    color: white;
+    filter: brightness(1.08);
+    box-shadow: 0 4px 12px $accent-glow;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+@mixin button-success {
+  @include button-primary;
+  background: $success;
+
+  &:hover:not(:disabled) {
+    background: $success;
+    color: white;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  }
+}
+
+@mixin input-base {
+  min-height: $touch-min-height;
+  background: $bg-input;
+  border: 1px solid $border;
+  border-radius: $border-radius-sm;
+  color: $text-primary;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    outline: none;
+    border-color: $accent;
+    box-shadow: 0 0 0 2px rgba(0, 121, 107, 0.15);
+  }
+}

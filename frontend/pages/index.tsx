@@ -9,9 +9,10 @@ import LeftPanel from '@/components/LeftPanel';
 import PatientPanel from '@/components/PatientPanel';
 import ResultPanel from '@/components/ResultPanel';
 import WelcomeModal from '@/components/WelcomeModal';
-import type { AST, Patient, InputValues, ComputedValues, ParseResponse, CalculateResponse, ChatMessage, SavedFormula, AppMode } from '@/types';
+import DepartmentManager from '@/components/DepartmentManager';
+import type { AST, Patient, InputValues, ComputedValues, ParseResponse, CalculateResponse, ChatMessage, Department, FormulaRecord, AppMode } from '@/types';
 import { astToBlockly } from '@/utils/blocklyGenerator';
-import { getFormulaList } from '@/utils/formulaStorage';
+import { fetchDepartments, fetchFormulas } from '@/utils/api';
 import styles from '@/styles/Home.module.scss';
 
 const VALID_AST_TYPES = ['formula', 'score', 'score_with_formula'] as const;
@@ -116,10 +117,16 @@ export default function Home() {
     const [initialChatHistory, setInitialChatHistory] = useState<ChatMessage[] | undefined>(undefined);
     const [initialGeneratedRules, setInitialGeneratedRules] = useState<string | null>(null);
 
-    const [formulaList, setFormulaList] = useState<SavedFormula[]>([]);
-    const [selectedFormula, setSelectedFormula] = useState<SavedFormula | null>(null);
+    // DB-backed department/formula state for 'use' mode
+    const [useDepartments, setUseDepartments] = useState<Department[]>([]);
+    const [useSelectedDeptId, setUseSelectedDeptId] = useState<number | null>(null);
+    const [useFormulas, setUseFormulas] = useState<FormulaRecord[]>([]);
+    const [selectedFormula, setSelectedFormula] = useState<FormulaRecord | null>(null);
     const [useFormulaParseLoading, setUseFormulaParseLoading] = useState(false);
     const [useFormulaParseError, setUseFormulaParseError] = useState('');
+    
+    // 目前正在編輯的公式記錄（若有）
+    const [activeFormula, setActiveFormula] = useState<FormulaRecord | null>(null);
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
     
@@ -141,72 +148,67 @@ export default function Home() {
         }
     }, []);
 
-    // 使用公式模式：載入公式列表
+    // 使用公式模式：載入部門列表
     useEffect(() => {
         if (appMode === 'use') {
-            setFormulaList(getFormulaList());
+            fetchDepartments()
+                .then((depts) => setUseDepartments(depts))
+                .catch(() => setUseDepartments([]));
         }
     }, [appMode]);
 
-    // 使用公式模式：選中公式後解析 DSL
+    // 使用公式模式：選部門後載入公式
+    useEffect(() => {
+        if (appMode !== 'use' || !useSelectedDeptId) {
+            setUseFormulas([]);
+            return;
+        }
+        fetchFormulas(useSelectedDeptId)
+            .then((formulas) => setUseFormulas(formulas))
+            .catch(() => setUseFormulas([]));
+    }, [appMode, useSelectedDeptId]);
+
+    // 使用公式模式：選中公式後直接使用 ast_data
     useEffect(() => {
         if (appMode !== 'use' || !selectedFormula) {
             return;
         }
-        let cancelled = false;
         setUseFormulaParseError('');
         setUseFormulaParseLoading(true);
         setError('');
         setScore(null);
         setComputed({});
-        fetch(`${API_BASE_URL}/parse`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: selectedFormula.dslText })
-        })
-            .then((res) => res.json())
-            .then((data: ParseResponse) => {
-                if (cancelled) return;
-                const parseErr = getApiErrorMessage(data);
-                if (parseErr) {
-                    setUseFormulaParseError(parseErr);
-                    setAst(null);
-                    setInputs({});
-                    return;
+
+        try {
+            const data = selectedFormula.ast_data as ParseResponse;
+            const newAst: AST = {
+                formula_name: data.formula_name,
+                score_name: data.score_name,
+                variables: data.variables || {},
+                formula: data.formula,
+                formulas: data.formulas,
+                rules: data.rules,
+                risk_levels: data.risk_levels,
+                type: normalizeAstType(data)
+            };
+            setAst(newAst);
+            const newInputs: InputValues = {};
+            Object.entries(newAst.variables || {}).forEach(([varName, varType]) => {
+                const type = (varType || 'int').toLowerCase();
+                if (type === 'boolean' || type === 'bool') {
+                    newInputs[varName] = false;
+                } else {
+                    newInputs[varName] = 0;
                 }
-                const newAst: AST = {
-                    formula_name: data.formula_name,
-                    score_name: data.score_name,
-                    variables: data.variables || {},
-                    formula: data.formula,
-                    formulas: data.formulas,
-                    rules: data.rules,
-                    risk_levels: data.risk_levels,
-                    type: normalizeAstType(data)
-                };
-                setAst(newAst);
-                const newInputs: InputValues = {};
-                Object.entries(newAst.variables || {}).forEach(([varName, varType]) => {
-                    const type = (varType || 'int').toLowerCase();
-                    if (type === 'boolean' || type === 'bool') {
-                        newInputs[varName] = false;
-                    } else {
-                        newInputs[varName] = 0;
-                    }
-                });
-                setInputs(newInputs);
-            })
-            .catch((e: Error) => {
-                if (!cancelled) {
-                    setUseFormulaParseError('無法連接後端: ' + e.message);
-                    setAst(null);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setUseFormulaParseLoading(false);
             });
-        return () => { cancelled = true; };
-    }, [appMode, selectedFormula, API_BASE_URL]);
+            setInputs(newInputs);
+        } catch (e) {
+            setUseFormulaParseError('AST 格式錯誤: ' + (e as Error).message);
+            setAst(null);
+        } finally {
+            setUseFormulaParseLoading(false);
+        }
+    }, [appMode, selectedFormula]);
 
     const handleCloseWelcome = (chatHistory: ChatMessage[], generatedRules: string | null) => {
         setShowWelcome(false);
@@ -287,6 +289,51 @@ export default function Home() {
         }
     };
 
+    /** 從 DB 記錄載入公式：用 ast_data 直接生成積木，不需重新 parse */
+    const applyFormulaRecord = useCallback((formula: FormulaRecord) => {
+        setActiveFormula(formula);
+        // 1. 用 raw_text 更新編輯器
+        if (formula.raw_text) {
+            setDocText(formula.raw_text);
+        }
+        // 2. 直接從 ast_data 建立 AST
+        try {
+            const data = formula.ast_data as ParseResponse;
+            const newAst: AST = {
+                formula_name: data.formula_name,
+                score_name: data.score_name,
+                variables: data.variables || {},
+                formula: data.formula,
+                formulas: data.formulas,
+                rules: data.rules,
+                risk_levels: data.risk_levels,
+                type: normalizeAstType(data)
+            };
+            setAst(newAst);
+            // 3. 初始化 inputs
+            const newInputs: InputValues = {};
+            Object.entries(newAst.variables || {}).forEach(([varName, varType]) => {
+                const type = (varType || 'int').toLowerCase();
+                if (type === 'boolean' || type === 'bool') {
+                    newInputs[varName] = false;
+                } else {
+                    newInputs[varName] = 0;
+                }
+            });
+            setInputs(newInputs);
+            // 4. 生成 Blockly 積木
+            if (workspaceRef.current) {
+                workspaceRef.current.clear();
+                astToBlockly(newAst, workspaceRef.current);
+            }
+            setError('');
+            setScore(null);
+            setComputed({});
+        } catch (e) {
+            setError('AST 格式錯誤: ' + (e as Error).message);
+        }
+    }, []);
+
     const handleCalculate = async () => {
         if (!ast) return;
         setError('');
@@ -337,7 +384,16 @@ export default function Home() {
 
     const onWorkspaceInit = useCallback((workspace: Blockly.WorkspaceSvg) => {
         workspaceRef.current = workspace;
-    }, []);
+        // 如果已有 AST（例如從管理部門載入），初始化時生成積木
+        if (ast) {
+            workspace.clear();
+            try {
+                astToBlockly(ast, workspace);
+            } catch (e) {
+                console.error('Error generating blocks from AST:', e);
+            }
+        }
+    }, [ast]);
 
     const togglePatientPanel = () => {
         if (patientPanelRef.current) {
@@ -405,7 +461,7 @@ export default function Home() {
                             >
                                 <span className={styles.homeCardIcon}>📋</span>
                                 <span className={styles.homeCardTitle}>使用公式</span>
-                                <span className={styles.homeCardDesc}>從公式列表選擇公式，選擇病人後計算結果</span>
+                                <span className={styles.homeCardDesc}>從部門選擇公式，選擇病人後計算結果</span>
                             </button>
                             <button
                                 type="button"
@@ -416,6 +472,7 @@ export default function Home() {
                                 <span className={styles.homeCardTitle}>建構公式</span>
                                 <span className={styles.homeCardDesc}>以 AI 或 DSL 編輯器建立、儲存並管理公式</span>
                             </button>
+
                         </div>
                     </div>
                 )}
@@ -425,29 +482,61 @@ export default function Home() {
                         <div className={styles.useFormulaCard}>
                             <h2 className={styles.useFormulaHeading}>使用公式</h2>
                             <div className={styles.formulaSelectRow}>
-                                <label className={styles.useFormulaLabel}>選擇公式</label>
+                                <label className={styles.useFormulaLabel}>選擇部門</label>
                                 <select
                                     className={styles.formulaSelect}
-                                    value={selectedFormula?.id ?? ''}
+                                    value={useSelectedDeptId ?? ''}
                                     onChange={(e) => {
-                                        const id = e.target.value;
-                                        setSelectedFormula(formulaList.find((f) => f.id === id) ?? null);
+                                        const id = Number(e.target.value) || null;
+                                        setUseSelectedDeptId(id);
+                                        setSelectedFormula(null);
+                                        setAst(null);
+                                        setScore(null);
+                                        setComputed({});
                                     }}
                                 >
-                                    <option value="">-- 請選擇公式 --</option>
-                                    {formulaList.map((f) => (
-                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                    <option value="">-- 請選擇部門 --</option>
+                                    {useDepartments.map((d) => (
+                                        <option key={d.id} value={d.id}>{d.name}</option>
                                     ))}
                                 </select>
+                                {useSelectedDeptId && useDepartments.find(d => d.id === useSelectedDeptId)?.description && (
+                                    <div className={styles.deptDescription}>
+                                        {useDepartments.find(d => d.id === useSelectedDeptId)?.description}
+                                    </div>
+                                )}
                             </div>
-                            {formulaList.length === 0 && (
-                                <p className={styles.useFormulaHint}>請先到「建構公式」建立並儲存公式</p>
+                            {useSelectedDeptId && (
+                                <div className={styles.formulaSelectRow}>
+                                    <label className={styles.useFormulaLabel}>選擇公式</label>
+                                    <select
+                                        className={styles.formulaSelect}
+                                        value={selectedFormula?.id ?? ''}
+                                        onChange={(e) => {
+                                            const id = Number(e.target.value) || null;
+                                            setSelectedFormula(useFormulas.find((f) => f.id === id) ?? null);
+                                        }}
+                                    >
+                                        <option value="">-- 請選擇公式 --</option>
+                                        {useFormulas.map((f) => (
+                                            <option key={f.id} value={f.id}>{f.name}</option>
+                                        ))}
+                                    </select>
+                                    {selectedFormula?.description && (
+                                        <div className={styles.formulaDescription}>
+                                            {selectedFormula.description}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {useDepartments.length === 0 && (
+                                <p className={styles.useFormulaHint}>尚無部門，請先到「管理部門」建立</p>
                             )}
                             {useFormulaParseError && (
                                 <div className={styles.useFormulaError}>{useFormulaParseError}</div>
                             )}
                             {useFormulaParseLoading && (
-                                <div className={styles.useFormulaLoading}>解析公式中...</div>
+                                <div className={styles.useFormulaLoading}>載入公式中...</div>
                             )}
                             {ast && !useFormulaParseLoading && (
                                 <>
@@ -485,6 +574,16 @@ export default function Home() {
                     </div>
                 )}
 
+                {!showWelcome && appMode === 'manage' && (
+                    <DepartmentManager
+                        onClose={() => setAppMode('home')}
+                        onLoadFormula={(formula: FormulaRecord) => {
+                            applyFormulaRecord(formula);
+                            setAppMode('build');
+                        }}
+                    />
+                )}
+
                 {!showWelcome && appMode === 'build' && (
                     <>
                         <div className={styles.buildGrid}>
@@ -495,6 +594,10 @@ export default function Home() {
                                     onParse={handleParse}
                                     loading={loading}
                                     error={error}
+                                    currentAst={ast as Record<string, unknown> | null}
+                                    onLoadFormulaFromDb={applyFormulaRecord}
+                                    activeFormula={activeFormula}
+                                    onActiveFormulaChange={setActiveFormula}
                                     initialChatHistory={initialChatHistory}
                                     initialGeneratedRules={initialGeneratedRules}
                                     embedInGrid

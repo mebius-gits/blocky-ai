@@ -34,6 +34,7 @@ class Formula(Base):
         Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False
     )
     name = Column(String(255), nullable=False, index=True)
+    description = Column(String(500), nullable=True)
     ast_data = Column(JSON, nullable=False)
     raw_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

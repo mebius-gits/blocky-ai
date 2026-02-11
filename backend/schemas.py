@@ -54,12 +54,14 @@ class DepartmentListItem(BaseModel):
 
 class FormulaCreate(BaseModel):
     name: str
+    description: Optional[str] = None
     ast_data: Dict[str, Any]
     raw_text: Optional[str] = None
 
 
 class FormulaUpdate(BaseModel):
     name: Optional[str] = None
+    description: Optional[str] = None
     ast_data: Optional[Dict[str, Any]] = None
     raw_text: Optional[str] = None
 
@@ -68,6 +70,7 @@ class FormulaResponse(BaseModel):
     id: int
     department_id: int
     name: str
+    description: Optional[str] = None
     ast_data: Dict[str, Any]
     raw_text: Optional[str] = None
     created_at: Optional[datetime] = None

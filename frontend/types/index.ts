@@ -38,7 +38,7 @@ export interface AST {
   type?: 'formula' | 'score' | 'score_with_formula';
 }
 
-export type AppMode = 'home' | 'build' | 'use';
+export type AppMode = 'home' | 'build' | 'use' | 'manage';
 
 export interface SavedFormula {
   id: string;
@@ -97,4 +97,28 @@ export interface ChatResponse {
   error?: string;
   reply?: string;
   generated_rules?: string;
+}
+
+// ──────────────────────────────────────────────
+// Database-backed types (Department & Formula)
+// ──────────────────────────────────────────────
+
+export interface Department {
+  id: number;
+  name: string;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  formulas?: FormulaRecord[];
+}
+
+export interface FormulaRecord {
+  id: number;
+  department_id: number;
+  name: string;
+  description?: string | null;
+  ast_data: Record<string, unknown>;
+  raw_text?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }

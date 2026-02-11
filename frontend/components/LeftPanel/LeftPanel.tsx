@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Panel, Group, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
 
-import FormulaListModal from '@/components/FormulaListModal';
-import type { ChatMessage, ChatResponse, SavedFormula } from '@/types';
-import { getFormulaList, saveFormula, deleteFormula } from '@/utils/formulaStorage';
+import DepartmentManager from '@/components/DepartmentManager';
+import type { ChatMessage, ChatResponse, Department, FormulaRecord } from '@/types';
+import { fetchDepartments, createFormula, updateFormulaApi } from '@/utils/api';
 
 import styles from './LeftPanel.module.scss';
 
@@ -13,6 +13,14 @@ interface LeftPanelProps {
     onParse: () => void;
     loading: boolean;
     error: string;
+    /** 目前 parse 出來的 AST，用於儲存到 DB */
+    currentAst?: Record<string, unknown> | null;
+    /** 載入 DB 公式時觸發，由父元件處理 AST 生成積木 */
+    onLoadFormulaFromDb?: (formula: FormulaRecord) => void;
+    /** 目前正在編輯的公式（若有），顯示更新按鈕用 */
+    activeFormula?: FormulaRecord | null;
+    /** 當新建或更新公式成功後，通知父元件更新 activeFormula */
+    onActiveFormulaChange?: (formula: FormulaRecord) => void;
     initialChatHistory?: ChatMessage[];
     initialGeneratedRules?: string | null;
     /** 在 build 模式三欄 grid 內使用時為 true，避免 absolute 蓋住中間 viewport */
@@ -30,6 +38,10 @@ export default function LeftPanel({
     onParse, 
     loading, 
     error,
+    currentAst,
+    onLoadFormulaFromDb,
+    activeFormula,
+    onActiveFormulaChange,
     initialChatHistory,
     initialGeneratedRules,
     embedInGrid = false
@@ -47,12 +59,18 @@ export default function LeftPanel({
     const [chatLoading, setChatLoading] = useState(false);
     const [generatedRules, setGeneratedRules] = useState<string | null>(null);
 
-    // 儲存公式：名稱輸入與列表 Modal
+    // 儲存公式：名稱輸入與部門選擇
     const [showSaveInput, setShowSaveInput] = useState(false);
+    const [saveMode, setSaveMode] = useState<'create' | 'update'>('create');
     const [saveName, setSaveName] = useState('');
+    const [saveDesc, setSaveDesc] = useState('');
     const [saveFeedback, setSaveFeedback] = useState('');
-    const [showFormulaListModal, setShowFormulaListModal] = useState(false);
-    const [formulaList, setFormulaList] = useState<SavedFormula[]>([]);
+    const [showDeptManager, setShowDeptManager] = useState(false);
+
+    // 部門列表（用於儲存時選擇）
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
+    const [saving, setSaving] = useState(false);
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
@@ -148,32 +166,98 @@ export default function LeftPanel({
         setEditorCollapsed(size.asPercentage < 5);
     };
 
-    const handleOpenFormulaList = () => {
-        setFormulaList(getFormulaList());
-        setShowFormulaListModal(true);
+    const handleOpenDeptManager = () => {
+        setShowDeptManager(true);
     };
 
-    const handleLoadFormula = (formula: SavedFormula) => {
-        setDocText(formula.dslText);
-        setShowFormulaListModal(false);
+    const handleLoadFormula = (formula: FormulaRecord) => {
+        // 委託給父元件處理 AST + Blockly 生成
+        if (onLoadFormulaFromDb) {
+            onLoadFormulaFromDb(formula);
+        } else if (formula.raw_text) {
+            setDocText(formula.raw_text);
+        }
+        setShowDeptManager(false);
         if (editorCollapsed && editorPanelRef.current) {
             editorPanelRef.current.expand();
             setEditorCollapsed(false);
         }
     };
 
-    const handleDeleteFormula = (id: string) => {
-        deleteFormula(id);
-        setFormulaList(getFormulaList());
-    };
+    // 打開儲存時載入部門列表
+    const handleOpenSave = useCallback(async (mode: 'create' | 'update') => {
+        setSaving(true);
+        // setError(''); // Removed as there's no `setError` state in this component
+        try {
+            const depts = await fetchDepartments();
+            setDepartments(depts);
+            
+            // 設定模式與預填資料
+            setSaveMode(mode);
+            if (mode === 'update' && activeFormula) {
+                setSaveName(activeFormula.name);
+                setSaveDesc(activeFormula.description || '');
+                setSelectedDeptId(activeFormula.department_id);
+            } else {
+                setSaveName('');
+                setSaveDesc('');
+                if (depts.length > 0 && !selectedDeptId) {
+                    setSelectedDeptId(depts[0].id);
+                }
+            }
+        } catch {
+            setDepartments([]);
+        } finally {
+            setSaving(false);
+            setShowSaveInput(true);
+        }
+    }, [selectedDeptId, activeFormula]);
 
-    const handleConfirmSaveFormula = () => {
+    const handleConfirmSaveFormula = async () => {
+        if (!selectedDeptId) {
+            setSaveFeedback('請先選擇部門');
+            setTimeout(() => setSaveFeedback(''), 2000);
+            return;
+        }
         const name = saveName.trim() || '未命名公式';
-        saveFormula(name, docText);
-        setSaveName('');
-        setShowSaveInput(false);
-        setSaveFeedback('已儲存');
-        setTimeout(() => setSaveFeedback(''), 2000);
+        const astData = currentAst || {};
+        setSaving(true);
+        try {
+            let resultFormula: FormulaRecord;
+            
+            if (saveMode === 'create') {
+                resultFormula = await createFormula(selectedDeptId, name, astData, docText, saveDesc.trim() || undefined);
+                setSaveFeedback('已建立新公式');
+            } else {
+                // Update mode
+                if (!activeFormula) throw new Error('無法更新：未選擇公式');
+                resultFormula = await updateFormulaApi(
+                    activeFormula.id,
+                    name,
+                    astData,
+                    docText,
+                    saveDesc.trim() || undefined // update description
+                );
+                // 如果部門變更了，可能需要額外處理？目前 API 不支援跨部門移動，或者需要後端支援
+                // updateFormulaApi 目前只更新 name/desc/content
+                // 若要支援移動部門，需要後端 updateFormula 支援 department_id
+                setSaveFeedback('更新成功');
+            }
+
+            setSaveName('');
+            setSaveDesc('');
+            setShowSaveInput(false);
+            
+            if (onActiveFormulaChange) {
+                onActiveFormulaChange(resultFormula);
+            }
+            setTimeout(() => setSaveFeedback(''), 2000);
+        } catch (e) {
+            setSaveFeedback((saveMode === 'create' ? '儲存' : '更新') + '失敗: ' + (e as Error).message);
+            setTimeout(() => setSaveFeedback(''), 3000);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const showQuickPrompts = chatMessages.length === 1 && 
@@ -322,24 +406,44 @@ export default function LeftPanel({
                                 </button>
 
                                 <div className={styles.formulaActions}>
+                                    {activeFormula && (
+                                        <button
+                                            type="button"
+                                            className={styles.btnSecondary}
+                                            onClick={() => handleOpenSave('update')}
+                                            disabled={saving}
+                                        >
+                                            更新修改
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         className={styles.btnSecondary}
-                                        onClick={() => setShowSaveInput(true)}
+                                        onClick={() => handleOpenSave('create')}
                                     >
-                                        儲存公式
+                                        {activeFormula ? '另存新檔' : '儲存公式'}
                                     </button>
                                     <button
                                         type="button"
                                         className={styles.btnSecondary}
-                                        onClick={handleOpenFormulaList}
+                                        onClick={handleOpenDeptManager}
                                     >
-                                        查看公式列表
+                                        部門管理
                                     </button>
                                 </div>
 
                                 {showSaveInput && (
                                     <div className={styles.saveFormulaRow}>
+                                        <select
+                                            className={styles.saveNameInput}
+                                            value={selectedDeptId ?? ''}
+                                            onChange={(e) => setSelectedDeptId(Number(e.target.value) || null)}
+                                        >
+                                            <option value="">-- 選擇部門 --</option>
+                                            {departments.map((d) => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
                                         <input
                                             type="text"
                                             value={saveName}
@@ -348,10 +452,17 @@ export default function LeftPanel({
                                             className={styles.saveNameInput}
                                             onKeyDown={(e) => e.key === 'Enter' && handleConfirmSaveFormula()}
                                         />
-                                        <button type="button" className={styles.btnSmall} onClick={handleConfirmSaveFormula}>
-                                            確認儲存
+                                        <input
+                                            type="text"
+                                            value={saveDesc}
+                                            onChange={(e) => setSaveDesc(e.target.value)}
+                                            placeholder="公式描述（選填）"
+                                            className={styles.saveNameInput}
+                                        />
+                                        <button type="button" className={styles.btnSmall} onClick={handleConfirmSaveFormula} disabled={saving}>
+                                            {saving ? '處理中...' : (saveMode === 'update' ? '確認更新' : '確認儲存')}
                                         </button>
-                                        <button type="button" className={styles.btnSmall} onClick={() => { setShowSaveInput(false); setSaveName(''); }}>
+                                        <button type="button" className={styles.btnSmall} onClick={() => { setShowSaveInput(false); setSaveName(''); setSaveDesc(''); }}>
                                             取消
                                         </button>
                                     </div>
@@ -365,12 +476,10 @@ export default function LeftPanel({
                 </Panel>
             </Group>
 
-            {showFormulaListModal && (
-                <FormulaListModal
-                    formulas={formulaList}
-                    onLoad={handleLoadFormula}
-                    onDelete={handleDeleteFormula}
-                    onClose={() => setShowFormulaListModal(false)}
+            {showDeptManager && (
+                <DepartmentManager
+                    onClose={() => setShowDeptManager(false)}
+                    onLoadFormula={handleLoadFormula}
                 />
             )}
         </div>

@@ -64,6 +64,7 @@ def create_formula(
     formula = Formula(
         department_id=department_id,
         name=data.name,
+        description=data.description,
         ast_data=data.ast_data,
         raw_text=data.raw_text,
     )
@@ -94,6 +95,8 @@ def update_formula(
         return None
     if data.name is not None:
         formula.name = data.name
+    if data.description is not None:
+        formula.description = data.description
     if data.ast_data is not None:
         formula.ast_data = data.ast_data
     if data.raw_text is not None:

@@ -129,6 +129,16 @@
   cursor: pointer;
 }
 
+.deptDescription,
+.formulaDescription {
+  font-size: 0.85rem;
+  color: $text-secondary;
+  margin-top: 4px;
+  padding: 0 4px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
 .useFormulaHint {
   font-size: 0.85rem;
   color: $text-secondary;

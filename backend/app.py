@@ -5,7 +5,18 @@ from typing import Optional, Any, Dict
 from parser_ai import parse_document_ai
 import re
 
-app = FastAPI()
+import os
+
+# Get root path from environment variable (for reverse proxy support)
+ROOT_PATH = os.getenv("ROOT_PATH", "")
+
+app = FastAPI(
+    title="Medical Blockly API",
+    root_path=ROOT_PATH,
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 # CORS configuration
 app.add_middleware(
@@ -362,6 +373,7 @@ async def calculate_score(request: CalculateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post('/chat')
+
 async def chat_generate_rules(request: ChatRequest):
     """Generate rule structure from natural language description"""
     import google.generativeai as genai

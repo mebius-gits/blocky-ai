@@ -34,12 +34,16 @@ def parse_document_ai(doc_text):
     
     There are THREE possible formats:
 
-    FORMAT 1 - Pure Formula (for calculations like BMI, GFR):
+    FORMAT 1 - Pure Formula (for calculations like BMI, GFR) with risk classification:
     {{
       "formula_name": "string",
       "type": "formula",
       "variables": {{ "variable_name": "int", ... }},
-      "formula": "math expression"
+      "formula": "math expression using variable names",
+      "risk_levels": [
+        {{ "condition": {{ "op": ">=", "left": "score", "right": value }}, "text": "risk label" }},
+        ...
+      ]
     }}
 
     FORMAT 2 - Pure Scoring Rules:
@@ -49,42 +53,71 @@ def parse_document_ai(doc_text):
       "variables": {{ "variable_name": "int or boolean", ... }},
       "rules": [
         {{ "condition": {{ "op": ">=", "left": "variable_name", "right": value }}, "action": {{ "type": "add", "value": number }} }}
+      ],
+      "risk_levels": [
+        {{ "condition": {{ "op": ">=", "left": "score", "right": value }}, "text": "risk label" }},
+        ...
       ]
     }}
 
-    FORMAT 3 - Scoring with Formulas (PREFERRED when rules use calculated values):
+    FORMAT 3 - Scoring with Formulas (when rules reference computed values):
     {{
       "score_name": "string",
       "type": "score_with_formula",
       "variables": {{ "weight": "int", "height": "int", ... }},
-      "formulas": {{ "BMI": "weight / (height * height)", ... }},
+      "formulas": {{ "bmi": "weight / ((height / 100.0) * (height / 100.0))", ... }},
       "rules": [
-        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 25 }}, "action": {{ "type": "add", "value": 1 }} }}
+        {{ "condition": {{ "op": ">=", "left": "bmi", "right": 25 }}, "action": {{ "type": "add", "value": 1 }} }}
+      ],
+      "risk_levels": [
+        {{ "condition": {{ "op": ">=", "left": "score", "right": value }}, "text": "risk label" }},
+        ...
       ]
     }}
 
-    EXAMPLE - Obesity Risk Score:
-    Input: "Create obesity risk score using BMI. If BMI >= 25 add 1, if BMI >= 30 add 2"
+    EXAMPLE - BMI Calculator with risk levels:
+    Input DSL:
+    score_name: BMI
+    variables:
+      weight: int
+      height: int
+    formulas:
+      score: weight / ((height / 100.0) * (height / 100.0))
+    rules:
+      dummy: 0
+    risk_levels:
+      - if: score >= 30
+        text: ⚠️ 肥胖
+      - if: score >= 25
+        text: ⚡ 過重
+      - if: score >= 18.5
+        text: ✓ 正常
+      - if: score < 18.5
+        text: ⚡ 體重過輕
+
     Output:
     {{
-      "score_name": "ObesityRisk",
-      "type": "score_with_formula",
+      "formula_name": "BMI",
+      "type": "formula",
       "variables": {{ "weight": "int", "height": "int" }},
-      "formulas": {{ "BMI": "weight / (height * height)" }},
-      "rules": [
-        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 25 }}, "action": {{ "type": "add", "value": 1 }} }},
-        {{ "condition": {{ "op": ">=", "left": "BMI", "right": 30 }}, "action": {{ "type": "add", "value": 2 }} }}
+      "formula": "weight / ((height / 100.0) * (height / 100.0))",
+      "risk_levels": [
+        {{ "condition": {{ "op": ">=", "left": "score", "right": 30 }}, "text": "⚠️ 肥胖" }},
+        {{ "condition": {{ "op": ">=", "left": "score", "right": 25 }}, "text": "⚡ 過重" }},
+        {{ "condition": {{ "op": ">=", "left": "score", "right": 18.5 }}, "text": "✓ 正常" }},
+        {{ "condition": {{ "op": "<", "left": "score", "right": 18.5 }}, "text": "⚡ 體重過輕" }}
       ]
     }}
 
     Rules:
     1. Detect which format is appropriate based on input.
-    2. If rules reference a calculated value (like BMI), use FORMAT 3 with "formulas" field.
-    3. Parse all input variables (the raw inputs user provides).
-    4. Parse derived formulas (calculated from input variables).
-    5. Parse rules with condition (op, left, right) and action.
+    2. If the DSL has "formulas:" with a real expression and "rules: dummy: 0", use FORMAT 1 (pure formula).
+    3. If rules reference a calculated value (like BMI), use FORMAT 3.
+    4. For FORMAT 1, the "formula" field is the math expression (e.g. "weight / ((height/100.0)**2)").
+    5. Always include risk_levels from the DSL. Map each "if: score >= X" to a condition with op/left/right and a text field.
     6. Operators: >=, <=, ==, >, <
-    7. Return ONLY the raw JSON. Do not include markdown formatting.
+    7. The "left" in risk_level conditions should always be "score".
+    8. Return ONLY the raw JSON. Do not include markdown formatting.
     """
     
     try:

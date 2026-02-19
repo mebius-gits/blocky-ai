@@ -323,7 +323,20 @@ async def calculate_score(request: CalculateRequest):
             for var_name, var_value in context.items():
                 formula = re.sub(r'\b' + var_name + r'\b', str(var_value), formula)
             result = eval(formula, allowed_names)
-            return {"result": round(result, 2)}
+            result = round(result, 2)
+
+            # Evaluate risk_levels against the computed result (treated as "score")
+            risk_level = None
+            if ast.get('risk_levels'):
+                risk_context = {**context, 'score': result}
+                for risk in ast['risk_levels']:
+                    if not risk or 'condition' not in risk:
+                        continue
+                    if evaluate_condition(risk['condition'], risk_context):
+                        risk_level = risk.get('text', '')
+                        break
+
+            return {"result": result, "score": result, "risk_level": risk_level}
         
         # Step 3: Score-based calculation (with formula support)
         if ast.get('rules'):
@@ -368,9 +381,32 @@ async def calculate_score(request: CalculateRequest):
             formula = ast['formula']
             for var_name, var_value in context.items():
                 formula = re.sub(r'\b' + var_name + r'\b', str(var_value), formula)
-            result = eval(formula, allowed_names)
-            return {"result": round(result, 2)}
-            
+            result = round(eval(formula, allowed_names), 2)
+            risk_level = None
+            if ast.get('risk_levels'):
+                risk_context = {**context, 'score': result}
+                for risk in ast['risk_levels']:
+                    if not risk or 'condition' not in risk:
+                        continue
+                    if evaluate_condition(risk['condition'], risk_context):
+                        risk_level = risk.get('text', '')
+                        break
+            return {"result": result, "score": result, "risk_level": risk_level}
+
+        # Last-resort fallback: if formulas produced a 'score' value, use it
+        if 'score' in context:
+            score = round(context['score'], 2) if isinstance(context['score'], float) else context['score']
+            risk_level = None
+            if ast.get('risk_levels'):
+                risk_context = {**context, 'score': score}
+                for risk in ast.get('risk_levels', []):
+                    if not risk or 'condition' not in risk:
+                        continue
+                    if evaluate_condition(risk['condition'], risk_context):
+                        risk_level = risk.get('text', '')
+                        break
+            return {"result": score, "score": score, "risk_level": risk_level}
+
         raise HTTPException(status_code=400, detail="Unknown AST type")
         
     except HTTPException:
@@ -379,33 +415,52 @@ async def calculate_score(request: CalculateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post('/chat')
-
-async def chat_generate_rules(request: ChatRequest):
-    """Generate rule structure from natural language description"""
+async def chat_generate_rules(request: ChatRequest, db: Session = Depends(get_db)):
+    """Mixed-mode chat: general conversation OR formula generation depending on user intent."""
     import google.generativeai as genai
     import os
     from dotenv import load_dotenv
-    
+
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    
+
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
-    
+
     genai.configure(api_key=api_key)
-    
+
     user_message = request.message
-    
     if not user_message:
         raise HTTPException(status_code=400, detail="No message provided")
-    
-    prompt = f"""You are a medical risk scoring assistant. Generate a complete, working scoring structure based on the user's request.
 
-User's request: {user_message}
+    # Auto-fetch patient fields from DB (include label for unit info)
+    db_fields = crud.get_patient_fields(db)
 
-REQUIRED FORMAT:
-```
+    # Build optional patient fields hint
+    if db_fields:
+        fields_list = ", ".join(
+            f"{f.field_name} ({f.label})" if f.label else f.field_name
+            for f in db_fields
+        )
+        patient_fields_hint = (
+            f"\n\nAVAILABLE PATIENT FIELDS with units (optional hint): {fields_list}\n"
+            f"Use the exact field_name as the variable name in formulas. The label shows the unit."
+        )
+    else:
+        patient_fields_hint = ""
+
+    prompt = f"""You are a helpful medical formula assistant. You can have general conversations AND generate medical scoring formulas.
+
+DECIDE based on the user's message:
+- If the user is asking a QUESTION, making SMALL TALK, requesting EXPLANATION, or saying something non-formula → reply conversationally in Traditional Chinese (繁體中文). Do NOT generate a formula.
+- If the user is REQUESTING A FORMULA or scoring system → reply conversationally AND include the formula using the markers below.
+
+User's message: {user_message}
+{patient_fields_hint}
+
+IF generating a formula, embed it exactly like this (markers on their own lines):
+FORMULA_START
 score_name: [ScoreName]
 variables:
   [var1]: int
@@ -423,10 +478,18 @@ risk_levels:
     text: ⚡ [Medium risk text]
   - if: score < [medium]
     text: ✓ [Low risk text]
-```
+FORMULA_END
 
-EXAMPLE - SOFA Score (ICU Mortality):
-```
+FORMULA RULES (only when generating):
+1. All 5 sections required: score_name, variables, formulas, rules, risk_levels
+2. Variable types: int or boolean ONLY
+3. Variable names: snake_case
+4. No comments (no # symbols)
+5. Compound conditions: use "and" / "or"
+6. If no formula needed, use dummy: 0 in formulas
+
+EXAMPLE (SOFA Score):
+FORMULA_START
 score_name: SOFA_Score
 variables:
   pao2_fio2: int
@@ -466,34 +529,33 @@ risk_levels:
     text: ⚡ 中危 - 死亡率 20-30%
   - if: score < 6
     text: ✓ 低危 - 死亡率 <15%
-```
+FORMULA_END
 
-STRICT RULES:
-1. Include ALL 5 sections: score_name, variables, formulas, rules, risk_levels
-2. Variable names: use simple snake_case (e.g., age, blood_pressure, gcs)
-3. Variable types: int or boolean ONLY
-4. Formulas: if none needed, use "dummy: 0"
-5. Compound conditions: use "and" / "or" (e.g., "if: map < 70 or dopamine > 0")
-6. NO comments (no # symbols)
-7. Return ONLY the structure, no explanations
-
-Generate:"""
+Your conversational reply (in 繁體中文):"""
 
     try:
         model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
-        generated_text = response.text.strip()
-        
-        # Clean up markdown
-        if '```' in generated_text:
-            lines = generated_text.split('\n')
-            clean_lines = [l for l in lines if not l.strip().startswith('```')]
-            generated_text = '\n'.join(clean_lines)
-        
-        return {
-            "reply": "Generated! Click 'Use This' to load it.",
-            "generated_rules": generated_text.strip()
-        }
+        full_text = response.text.strip()
+
+        # Parse: split conversational reply from formula block
+        if "FORMULA_START" in full_text and "FORMULA_END" in full_text:
+            before = full_text[:full_text.index("FORMULA_START")].strip()
+            formula_raw = full_text[full_text.index("FORMULA_START") + len("FORMULA_START"):full_text.index("FORMULA_END")].strip()
+            after = full_text[full_text.index("FORMULA_END") + len("FORMULA_END"):].strip()
+
+            # Clean markdown fences inside formula block
+            formula_lines = [l for l in formula_raw.split("\n") if not l.strip().startswith("```")]
+            formula_text = "\n".join(formula_lines).strip()
+
+            reply_parts = [p for p in [before, after] if p]
+            reply_text = "\n".join(reply_parts) if reply_parts else "公式已生成，請點擊「載入到編輯器」使用。"
+
+            return {"reply": reply_text, "generated_rules": formula_text}
+        else:
+            # Conversational reply only
+            return {"reply": full_text}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
@@ -505,6 +567,30 @@ Generate:"""
 @app.on_event("startup")
 def on_startup():
     init_db()
+    _seed_default_patient_fields()
+
+
+def _seed_default_patient_fields():
+    """Insert default patient fields (from PatientPanel sample data) if empty."""
+    from schemas import PatientFieldCreate
+    DEFAULT_FIELDS = [
+        PatientFieldCreate(field_name="age",         label="年齡 (歲)",      field_type="int"),
+        PatientFieldCreate(field_name="height",      label="身高 (公尺)",    field_type="float"),
+        PatientFieldCreate(field_name="weight",      label="體重 (公斤)",    field_type="float"),
+        PatientFieldCreate(field_name="cholesterol", label="膽固醇 (mg/dL)", field_type="float"),
+        PatientFieldCreate(field_name="has_disease", label="是否患有常見疾病", field_type="boolean"),
+    ]
+    db = next(get_db())
+    try:
+        if crud.get_patient_fields(db):
+            return  # already seeded
+        for f in DEFAULT_FIELDS:
+            try:
+                crud.create_patient_field(db, f)
+            except Exception:
+                pass  # skip duplicate
+    finally:
+        db.close()
 
 
 # ──────────────────────────────────────────────
@@ -620,6 +706,47 @@ async def delete_formula(formula_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Formula not found")
     return {"detail": "Formula deleted"}
+
+
+# ──────────────────────────────────────────────
+# PatientField Endpoints  (field-name registry only)
+# ──────────────────────────────────────────────
+
+@app.get('/patient-fields', response_model=List[schemas.PatientFieldResponse])
+async def list_patient_fields(db: Session = Depends(get_db)):
+    """List all registered patient field names."""
+    return crud.get_patient_fields(db)
+
+
+@app.post('/patient-fields', response_model=schemas.PatientFieldResponse, status_code=201)
+async def create_patient_field(data: schemas.PatientFieldCreate, db: Session = Depends(get_db)):
+    """Register a new patient field name."""
+    try:
+        return crud.create_patient_field(db, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put('/patient-fields/{field_id}', response_model=schemas.PatientFieldResponse)
+async def update_patient_field(
+    field_id: int,
+    data: schemas.PatientFieldUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update a patient field's label or type."""
+    field = crud.update_patient_field(db, field_id, data)
+    if not field:
+        raise HTTPException(status_code=404, detail="Patient field not found")
+    return field
+
+
+@app.delete('/patient-fields/{field_id}')
+async def delete_patient_field(field_id: int, db: Session = Depends(get_db)):
+    """Remove a patient field from the registry."""
+    success = crud.delete_patient_field(db, field_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Patient field not found")
+    return {"detail": "Patient field deleted"}
 
 
 if __name__ == '__main__':

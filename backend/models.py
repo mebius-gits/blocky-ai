@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -49,3 +49,20 @@ class Formula(Base):
 
     def __repr__(self):
         return f"<Formula(id={self.id}, name='{self.name}')>"
+
+
+class PatientField(Base):
+    """Registry of patient data field names available in the external system.
+    Stores only field metadata (no actual patient values).
+    Used to hint AI formula generation with available variable names.
+    """
+    __tablename__ = "patient_fields"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    field_name = Column(String(100), unique=True, nullable=False, index=True)  # e.g. "height"
+    label = Column(String(255), nullable=True)    # e.g. "身高 (公尺)"
+    field_type = Column(String(50), nullable=False, default="float")  # int / float / boolean / string
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<PatientField(id={self.id}, field_name='{self.field_name}')>"

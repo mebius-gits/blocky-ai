@@ -77,3 +77,28 @@ class FormulaResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+# ──────────────────────────────────────────────
+# PatientField  (field-name registry only, no actual patient values)
+# ──────────────────────────────────────────────
+
+class PatientFieldCreate(BaseModel):
+    field_name: str                      # e.g. "height"
+    label: Optional[str] = None         # e.g. "身高 (公尺)"
+    field_type: str = "float"           # int / float / boolean / string
+
+
+class PatientFieldUpdate(BaseModel):
+    label: Optional[str] = None
+    field_type: Optional[str] = None
+
+
+class PatientFieldResponse(BaseModel):
+    id: int
+    field_name: str
+    label: Optional[str] = None
+    field_type: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}

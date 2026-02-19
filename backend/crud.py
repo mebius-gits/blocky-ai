@@ -1,12 +1,14 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
-from models import Department, Formula
+from models import Department, Formula, PatientField
 from schemas import (
     DepartmentCreate,
     DepartmentUpdate,
     FormulaCreate,
     FormulaUpdate,
+    PatientFieldCreate,
+    PatientFieldUpdate,
 )
 
 
@@ -111,5 +113,53 @@ def delete_formula(db: Session, formula_id: int) -> bool:
     if not formula:
         return False
     db.delete(formula)
+    db.commit()
+    return True
+
+
+# ──────────────────────────────────────────────
+# PatientField CRUD  (field-name registry)
+# ──────────────────────────────────────────────
+
+def create_patient_field(db: Session, data: PatientFieldCreate) -> PatientField:
+    field = PatientField(
+        field_name=data.field_name.strip(),
+        label=data.label,
+        field_type=data.field_type,
+    )
+    db.add(field)
+    db.commit()
+    db.refresh(field)
+    return field
+
+
+def get_patient_fields(db: Session) -> List[PatientField]:
+    return db.query(PatientField).order_by(PatientField.id).all()
+
+
+def get_patient_field(db: Session, field_id: int) -> Optional[PatientField]:
+    return db.query(PatientField).filter(PatientField.id == field_id).first()
+
+
+def update_patient_field(
+    db: Session, field_id: int, data: PatientFieldUpdate
+) -> Optional[PatientField]:
+    field = get_patient_field(db, field_id)
+    if not field:
+        return None
+    if data.label is not None:
+        field.label = data.label
+    if data.field_type is not None:
+        field.field_type = data.field_type
+    db.commit()
+    db.refresh(field)
+    return field
+
+
+def delete_patient_field(db: Session, field_id: int) -> bool:
+    field = get_patient_field(db, field_id)
+    if not field:
+        return False
+    db.delete(field)
     db.commit()
     return True
